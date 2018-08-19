@@ -338,9 +338,9 @@ void cmVisualStudio10TargetGenerator::Generate()
     this->WriteString("<PropertyGroup Label=\"NsightTegraProject\">\n", 1);
     if(this->NsightTegraVersion[0] >= 2)
       {
-      // Nsight Tegra 2.0 uses project revision 8.
+      // Nsight Tegra 2.0 uses project revision 9.
       this->WriteString("<NsightTegraProjectRevisionNumber>"
-                        "8"
+                        "9"
                         "</NsightTegraProjectRevisionNumber>\n", 2);
       // Tell newer versions to upgrade silently when loading.
       this->WriteString("<NsightTegraUpgradeOnceWithoutPrompt>"
@@ -1455,6 +1455,8 @@ void cmVisualStudio10TargetGenerator::WriteExtraSource(cmSourceFile const* sf)
   bool toolHasSettings = false;
   std::string tool = "None";
   std::string shaderType;
+  std::string shaderEntryPoint;
+  std::string shaderModel;
   std::string ext = cmSystemTools::LowerCase(sf->GetExtension());
   if(ext == "hlsl")
     {
@@ -1463,6 +1465,18 @@ void cmVisualStudio10TargetGenerator::WriteExtraSource(cmSourceFile const* sf)
     if(const char* st = sf->GetProperty("VS_SHADER_TYPE"))
       {
       shaderType = st;
+      toolHasSettings = true;
+      }
+    // Figure out which entry point to use if any
+    if (const char* se = sf->GetProperty("VS_SHADER_ENTRYPOINT"))
+      {
+      shaderEntryPoint = se;
+      toolHasSettings = true;
+      }
+    // Figure out which entry point to use if any
+    if (const char* sm = sf->GetProperty("VS_SHADER_MODEL"))
+      {
+      shaderModel = sm;
       toolHasSettings = true;
       }
     }
@@ -1499,6 +1513,7 @@ void cmVisualStudio10TargetGenerator::WriteExtraSource(cmSourceFile const* sf)
     }
 
   std::string deployContent;
+  std::string deployLocation;
   if(this->GlobalGenerator->TargetsWindowsPhone() ||
      this->GlobalGenerator->TargetsWindowsStore())
     {
@@ -1507,6 +1522,12 @@ void cmVisualStudio10TargetGenerator::WriteExtraSource(cmSourceFile const* sf)
       {
       toolHasSettings = true;
       deployContent = content;
+
+      const char* location = sf->GetProperty("VS_DEPLOYMENT_LOCATION");
+      if(location && *location)
+        {
+        deployLocation = location;
+        }
       }
     }
 
@@ -1521,6 +1542,14 @@ void cmVisualStudio10TargetGenerator::WriteExtraSource(cmSourceFile const* sf)
       cmGeneratorExpression ge;
       cmsys::auto_ptr<cmCompiledGeneratorExpression> cge =
         ge.Parse(deployContent);
+      // Deployment location cannot be set on a configuration basis
+      if(!deployLocation.empty())
+        {
+        this->WriteString("<Link>", 3);
+        (*this->BuildFileStream) << deployLocation
+                                 << "\\%(FileName)%(Extension)";
+        this->WriteString("</Link>\n", 0);
+        }
       for(size_t i = 0; i != configs->size(); ++i)
         {
         if(0 == strcmp(cge->Evaluate(this->Makefile, (*configs)[i]), "1"))
@@ -1547,7 +1576,18 @@ void cmVisualStudio10TargetGenerator::WriteExtraSource(cmSourceFile const* sf)
       (*this->BuildFileStream) << cmVS10EscapeXML(shaderType)
                                << "</ShaderType>\n";
       }
-
+    if(!shaderEntryPoint.empty())
+      {
+      this->WriteString("<EntryPointName>", 3);
+      (*this->BuildFileStream) << cmVS10EscapeXML(shaderEntryPoint)
+                               << "</EntryPointName>\n";
+      }
+    if(!shaderModel.empty())
+      {
+      this->WriteString("<ShaderModel>", 3);
+      (*this->BuildFileStream) << cmVS10EscapeXML(shaderModel)
+                               << "</ShaderModel>\n";
+      }
     this->WriteString("</", 2);
     (*this->BuildFileStream) << tool << ">\n";
     }
@@ -2288,7 +2328,8 @@ WriteMasmOptions(std::string const& configName,
 void
 cmVisualStudio10TargetGenerator::WriteLibOptions(std::string const& config)
 {
-  if(this->Target->GetType() != cmTarget::STATIC_LIBRARY)
+  if(this->Target->GetType() != cmTarget::STATIC_LIBRARY &&
+     this->Target->GetType() != cmTarget::OBJECT_LIBRARY)
     {
     return;
     }
@@ -2519,7 +2560,14 @@ cmVisualStudio10TargetGenerator::ComputeLinkOptions(std::string const& config)
         linkOptions.AddFlag("SubSystem", "WindowsCE");
         if (this->Target->GetType() == cmTarget::EXECUTABLE)
           {
-          linkOptions.AddFlag("EntryPointSymbol", "WinMainCRTStartup");
+          if (this->ClOptions[config]->UsingUnicode())
+            {
+            linkOptions.AddFlag("EntryPointSymbol", "wWinMainCRTStartup");
+            }
+          else
+            {
+            linkOptions.AddFlag("EntryPointSymbol", "WinMainCRTStartup");
+            }
           }
         }
       else
@@ -2534,7 +2582,14 @@ cmVisualStudio10TargetGenerator::ComputeLinkOptions(std::string const& config)
         linkOptions.AddFlag("SubSystem", "WindowsCE");
         if (this->Target->GetType() == cmTarget::EXECUTABLE)
           {
-          linkOptions.AddFlag("EntryPointSymbol", "mainACRTStartup");
+          if (this->ClOptions[config]->UsingUnicode())
+            {
+            linkOptions.AddFlag("EntryPointSymbol", "mainWCRTStartup");
+            }
+          else
+            {
+            linkOptions.AddFlag("EntryPointSymbol", "mainACRTStartup");
+            }
           }
         }
       else
