@@ -3,7 +3,7 @@
 cmake-packages(7)
 *****************
 
-.. only:: html or latex
+.. only:: html
 
    .. contents::
 
@@ -282,7 +282,8 @@ shared library:
   generate_export_header(ClimbingStats)
   set_property(TARGET ClimbingStats PROPERTY VERSION ${Upstream_VERSION})
   set_property(TARGET ClimbingStats PROPERTY SOVERSION 3)
-  set_property(TARGET ClimbingStats PROPERTY INTERFACE_ClimbingStats_MAJOR_VERSION 3)
+  set_property(TARGET ClimbingStats PROPERTY
+    INTERFACE_ClimbingStats_MAJOR_VERSION 3)
   set_property(TARGET ClimbingStats APPEND PROPERTY
     COMPATIBLE_INTERFACE_STRING ClimbingStats_MAJOR_VERSION
   )
@@ -316,7 +317,7 @@ shared library:
   )
   configure_file(cmake/ClimbingStatsConfig.cmake
     "${CMAKE_CURRENT_BINARY_DIR}/ClimbingStats/ClimbingStatsConfig.cmake"
-    COPY_ONLY
+    COPYONLY
   )
 
   set(ConfigPackageLocation lib/cmake/ClimbingStats)
@@ -479,7 +480,7 @@ be true. This can be tested with logic in the package configuration file:
   foreach(_comp ${ClimbingStats_FIND_COMPONENTS})
     if (NOT ";${_supported_components};" MATCHES _comp)
       set(ClimbingStats_FOUND False)
-      set(ClimbingStats_NOTFOUND_MESSAGE "Specified unsupported component: ${_comp}")
+      set(ClimbingStats_NOTFOUND_MESSAGE "Unsupported component: ${_comp}")
     endif()
     include("${CMAKE_CURRENT_LIST_DIR}/ClimbingStats${_comp}Targets.cmake")
   endforeach()
