@@ -44,7 +44,7 @@ public:
   virtual cmLocalGenerator *CreateLocalGenerator();
 
   /**
-   * Try to determine system infomation such as shared library
+   * Try to determine system information such as shared library
    * extension, pthreads, byte order etc.
    */
   virtual void EnableLanguage(std::vector<std::string>const& languages,
@@ -63,13 +63,6 @@ public:
     bool fast,
     std::vector<std::string> const& makeOptions = std::vector<std::string>()
     );
-
-  /**
-   * Generate the all required files for building this project/tree. This
-   * basically creates a series of LocalGenerators for each directory and
-   * requests that they Generate.
-   */
-  virtual void Generate();
 
   /** Append the subdirectory for the given configuration.  */
   virtual void AppendDirectoryForConfig(const std::string& prefix,
@@ -91,6 +84,8 @@ public:
 
   virtual bool SetGeneratorToolset(std::string const& ts, cmMakefile* mf);
   void AppendFlag(std::string& flags, std::string const& flag);
+protected:
+  virtual void Generate();
 private:
   cmXCodeObject* CreateOrGetPBXGroup(cmTarget& cmtarget,
                                      cmSourceGroup* sg);

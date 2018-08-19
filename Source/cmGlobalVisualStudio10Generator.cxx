@@ -97,7 +97,9 @@ cmGlobalVisualStudio10Generator::cmGlobalVisualStudio10Generator(
   this->ExpressEdition = cmSystemTools::ReadRegistryValue(
     "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VCExpress\\10.0\\Setup\\VC;"
     "ProductDir", vc10Express, cmSystemTools::KeyWOW64_32);
-  this->MasmEnabled = false;
+  this->SystemIsWindowsCE = false;
+  this->SystemIsWindowsPhone = false;
+  this->SystemIsWindowsStore = false;
   this->MSBuildCommandInitialized = false;
 }
 
@@ -115,38 +117,158 @@ cmGlobalVisualStudio10Generator::MatchesGeneratorName(
 }
 
 //----------------------------------------------------------------------------
-bool
-cmGlobalVisualStudio10Generator::SetGeneratorToolset(std::string const& ts,
-                                                     cmMakefile* mf)
-{
-  this->GeneratorToolset = ts;
-  this->AddVSPlatformToolsetDefinition(mf);
-  return true;
-}
-
-//----------------------------------------------------------------------------
 bool cmGlobalVisualStudio10Generator::SetSystemName(std::string const& s,
                                                     cmMakefile* mf)
 {
-  if(this->PlatformName == "Itanium" || this->PlatformName == "x64")
+  this->SystemName = s;
+  this->SystemVersion = mf->GetSafeDefinition("CMAKE_SYSTEM_VERSION");
+  if(!this->InitializeSystem(mf))
+    {
+    return false;
+    }
+  return this->cmGlobalVisualStudio8Generator::SetSystemName(s, mf);
+}
+
+//----------------------------------------------------------------------------
+bool
+cmGlobalVisualStudio10Generator::SetGeneratorPlatform(std::string const& p,
+                                                      cmMakefile* mf)
+{
+  if(!this->cmGlobalVisualStudio8Generator::SetGeneratorPlatform(p, mf))
+    {
+    return false;
+    }
+  if(this->GetPlatformName() == "Itanium" || this->GetPlatformName() == "x64")
     {
     if(this->IsExpressEdition() && !this->Find64BitTools(mf))
       {
       return false;
       }
     }
-  this->AddVSPlatformToolsetDefinition(mf);
-  return this->cmGlobalVisualStudio8Generator::SetSystemName(s, mf);
+  return true;
 }
 
 //----------------------------------------------------------------------------
-void cmGlobalVisualStudio10Generator
-::AddVSPlatformToolsetDefinition(cmMakefile* mf) const
+bool
+cmGlobalVisualStudio10Generator::SetGeneratorToolset(std::string const& ts,
+                                                     cmMakefile* mf)
 {
+  if (this->SystemIsWindowsCE && ts.empty() &&
+      this->DefaultPlatformToolset.empty())
+    {
+    cmOStringStream e;
+    e << this->GetName() << " Windows CE version '" << this->SystemVersion
+      << "' requires CMAKE_GENERATOR_TOOLSET to be set.";
+    mf->IssueMessage(cmake::FATAL_ERROR, e.str());
+    return false;
+    }
+
+  this->GeneratorToolset = ts;
   if(const char* toolset = this->GetPlatformToolset())
     {
     mf->AddDefinition("CMAKE_VS_PLATFORM_TOOLSET", toolset);
     }
+  return true;
+}
+
+//----------------------------------------------------------------------------
+bool cmGlobalVisualStudio10Generator::InitializeSystem(cmMakefile* mf)
+{
+  if (this->SystemName == "WindowsCE")
+    {
+    this->SystemIsWindowsCE = true;
+    if (!this->InitializeWindowsCE(mf))
+      {
+      return false;
+      }
+    }
+  else if(this->SystemName == "WindowsPhone")
+    {
+    this->SystemIsWindowsPhone = true;
+    if(!this->InitializeWindowsPhone(mf))
+      {
+      return false;
+      }
+    }
+  else if(this->SystemName == "WindowsStore")
+    {
+    this->SystemIsWindowsStore = true;
+    if(!this->InitializeWindowsStore(mf))
+      {
+      return false;
+      }
+    }
+  else if(this->SystemName == "Android")
+    {
+    if(this->DefaultPlatformName != "Win32")
+      {
+      cmOStringStream e;
+      e << "CMAKE_SYSTEM_NAME is 'Android' but CMAKE_GENERATOR "
+        << "specifies a platform too: '" << this->GetName() << "'";
+      mf->IssueMessage(cmake::FATAL_ERROR, e.str());
+      return false;
+      }
+    std::string v = this->GetInstalledNsightTegraVersion();
+    if(v.empty())
+      {
+      mf->IssueMessage(cmake::FATAL_ERROR,
+        "CMAKE_SYSTEM_NAME is 'Android' but "
+        "'NVIDIA Nsight Tegra Visual Studio Edition' "
+        "is not installed.");
+      return false;
+      }
+    this->DefaultPlatformName = "Tegra-Android";
+    this->DefaultPlatformToolset = "Default";
+    this->NsightTegraVersion = v;
+    mf->AddDefinition("CMAKE_VS_NsightTegra_VERSION", v.c_str());
+    }
+
+  return true;
+}
+
+//----------------------------------------------------------------------------
+bool cmGlobalVisualStudio10Generator::InitializeWindowsCE(cmMakefile* mf)
+{
+  if (this->DefaultPlatformName != "Win32")
+    {
+    cmOStringStream e;
+    e << "CMAKE_SYSTEM_NAME is 'WindowsCE' but CMAKE_GENERATOR "
+      << "specifies a platform too: '" << this->GetName() << "'";
+    mf->IssueMessage(cmake::FATAL_ERROR, e.str());
+    return false;
+    }
+
+  this->DefaultPlatformToolset = this->SelectWindowsCEToolset();
+
+  return true;
+}
+
+//----------------------------------------------------------------------------
+bool cmGlobalVisualStudio10Generator::InitializeWindowsPhone(cmMakefile* mf)
+{
+  cmOStringStream e;
+  e << this->GetName() << " does not support Windows Phone.";
+  mf->IssueMessage(cmake::FATAL_ERROR, e.str());
+  return false;
+}
+
+//----------------------------------------------------------------------------
+bool cmGlobalVisualStudio10Generator::InitializeWindowsStore(cmMakefile* mf)
+{
+  cmOStringStream e;
+  e << this->GetName() << " does not support Windows Store.";
+  mf->IssueMessage(cmake::FATAL_ERROR, e.str());
+  return false;
+}
+
+//----------------------------------------------------------------------------
+std::string cmGlobalVisualStudio10Generator::SelectWindowsCEToolset() const
+{
+  if (this->SystemVersion == "8.0")
+    {
+    return "CE800";
+    }
+  return "";
 }
 
 //----------------------------------------------------------------------------
@@ -209,15 +331,6 @@ void cmGlobalVisualStudio10Generator
 ::EnableLanguage(std::vector<std::string>const &  lang,
                  cmMakefile *mf, bool optional)
 {
-  for(std::vector<std::string>::const_iterator it = lang.begin();
-      it != lang.end(); ++it)
-    {
-    if(*it == "ASM_MASM")
-      {
-      this->MasmEnabled = true;
-      }
-    }
-
   cmGlobalVisualStudio8Generator::EnableLanguage(lang, mf, optional);
 }
 
@@ -441,7 +554,7 @@ bool cmGlobalVisualStudio10Generator::Find64BitTools(cmMakefile* mf)
   // This edition does not come with 64-bit tools.  Look for them.
   //
   // TODO: Detect available tools?  x64\v100 exists but does not work?
-  // KHLM\\SOFTWARE\\Microsoft\\MSBuild\\ToolsVersions\\4.0;VCTargetsPath
+  // HKLM\\SOFTWARE\\Microsoft\\MSBuild\\ToolsVersions\\4.0;VCTargetsPath
   // c:/Program Files (x86)/MSBuild/Microsoft.Cpp/v4.0/Platforms/
   //   {Itanium,Win32,x64}/PlatformToolsets/{v100,v90,Windows7.1SDK}
   std::string winSDK_7_1;
@@ -504,4 +617,26 @@ void cmGlobalVisualStudio10Generator::PathTooLong(
 bool cmGlobalVisualStudio10Generator::UseFolderProperty()
 {
   return IsExpressEdition() ? false : cmGlobalGenerator::UseFolderProperty();
+}
+
+//----------------------------------------------------------------------------
+bool cmGlobalVisualStudio10Generator::IsNsightTegra() const
+{
+  return !this->NsightTegraVersion.empty();
+}
+
+//----------------------------------------------------------------------------
+std::string cmGlobalVisualStudio10Generator::GetNsightTegraVersion() const
+{
+  return this->NsightTegraVersion;
+}
+
+//----------------------------------------------------------------------------
+std::string cmGlobalVisualStudio10Generator::GetInstalledNsightTegraVersion()
+{
+  std::string version;
+  cmSystemTools::ReadRegistryValue(
+    "HKEY_LOCAL_MACHINE\\SOFTWARE\\NVIDIA Corporation\\Nsight Tegra;"
+    "Version", version, cmSystemTools::KeyWOW64_32);
+  return version;
 }

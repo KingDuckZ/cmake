@@ -639,6 +639,7 @@ void cmake::SetArgs(const std::vector<std::string>& args,
 {
   bool directoriesSet = directoriesSetBefore;
   bool haveToolset = false;
+  bool havePlatform = false;
   for(unsigned int i=1; i < args.size(); ++i)
     {
     std::string arg = args[i];
@@ -766,6 +767,27 @@ void cmake::SetArgs(const std::vector<std::string>& args,
       std::cout << "Also check system files when warning about unused and " <<
                    "uninitialized variables.\n";
       this->SetCheckSystemVars(true);
+      }
+    else if(arg.find("-A",0) == 0)
+      {
+      std::string value = arg.substr(2);
+      if(value.size() == 0)
+        {
+        ++i;
+        if(i >= args.size())
+          {
+          cmSystemTools::Error("No platform specified for -A");
+          return;
+          }
+        value = args[i];
+        }
+      if(havePlatform)
+        {
+        cmSystemTools::Error("Multiple -A options not allowed");
+        return;
+        }
+      this->GeneratorPlatform = value;
+      havePlatform = true;
       }
     else if(arg.find("-T",0) == 0)
       {
@@ -1445,6 +1467,34 @@ int cmake::ActualConfigure()
                         cmCacheManager::INTERNAL);
     }
 
+  if(const char* platformName =
+     this->CacheManager->GetCacheValue("CMAKE_GENERATOR_PLATFORM"))
+    {
+    if(this->GeneratorPlatform.empty())
+      {
+      this->GeneratorPlatform = platformName;
+      }
+    else if(this->GeneratorPlatform != platformName)
+      {
+      std::string message = "Error: generator platform: ";
+      message += this->GeneratorPlatform;
+      message += "\nDoes not match the platform used previously: ";
+      message += platformName;
+      message +=
+        "\nEither remove the CMakeCache.txt file and CMakeFiles "
+        "directory or choose a different binary directory.";
+      cmSystemTools::Error(message.c_str());
+      return -2;
+      }
+    }
+  else
+    {
+    this->CacheManager->AddCacheEntry("CMAKE_GENERATOR_PLATFORM",
+                                      this->GeneratorPlatform.c_str(),
+                                      "Name of generator platform.",
+                                      cmCacheManager::INTERNAL);
+    }
+
   if(const char* tsName =
      this->CacheManager->GetCacheValue("CMAKE_GENERATOR_TOOLSET"))
     {
@@ -1715,7 +1765,7 @@ int cmake::Generate()
     {
     return -1;
     }
-  this->GlobalGenerator->Generate();
+  this->GlobalGenerator->DoGenerate();
   if ( !this->GraphVizFile.empty() )
     {
     std::cout << "Generate graphviz: " << this->GraphVizFile << std::endl;
@@ -2757,7 +2807,7 @@ int cmake::Build(const std::string& dir,
   projName = it.GetValue();
   return gen->Build("", dir,
                     projName, target,
-                    &output,
+                    output,
                     "",
                     config, clean, false, 0,
                     cmSystemTools::OUTPUT_PASSTHROUGH,

@@ -218,7 +218,7 @@ void cmMakefileTargetGenerator::WriteCommonCodeRules()
     << this->LocalGenerator->IncludeDirective << " " << root
     << this->Convert(dependFileNameFull,
                      cmLocalGenerator::HOME_OUTPUT,
-                     cmLocalGenerator::MAKEFILE)
+                     cmLocalGenerator::MAKERULE)
     << "\n\n";
 
   if(!this->NoRuleMessages)
@@ -229,7 +229,7 @@ void cmMakefileTargetGenerator::WriteCommonCodeRules()
       << this->LocalGenerator->IncludeDirective << " " << root
       << this->Convert(this->ProgressFileNameFull,
                        cmLocalGenerator::HOME_OUTPUT,
-                       cmLocalGenerator::MAKEFILE)
+                       cmLocalGenerator::MAKERULE)
       << "\n\n";
     }
 
@@ -262,7 +262,7 @@ void cmMakefileTargetGenerator::WriteCommonCodeRules()
     << this->LocalGenerator->IncludeDirective << " " << root
     << this->Convert(this->FlagFileNameFull,
                                      cmLocalGenerator::HOME_OUTPUT,
-                                     cmLocalGenerator::MAKEFILE)
+                                     cmLocalGenerator::MAKERULE)
     << "\n\n";
 }
 
@@ -361,9 +361,13 @@ void cmMakefileTargetGenerator::WriteTargetLanguageFlags()
   for(std::set<std::string>::const_iterator l = languages.begin();
       l != languages.end(); ++l)
     {
-    *this->FlagFileStream << *l << "_FLAGS = " << this->GetFlags(*l) << "\n\n";
-    *this->FlagFileStream << *l << "_DEFINES = " << this->GetDefines(*l) <<
-      "\n\n";
+    std::string flags = this->GetFlags(*l);
+    std::string defines = this->GetDefines(*l);
+    // Escape comment characters so they do not terminate assignment.
+    cmSystemTools::ReplaceString(flags, "#", "\\#");
+    cmSystemTools::ReplaceString(defines, "#", "\\#");
+    *this->FlagFileStream << *l << "_FLAGS = " << flags << "\n\n";
+    *this->FlagFileStream << *l << "_DEFINES = " << defines << "\n\n";
     }
 }
 
@@ -1958,7 +1962,7 @@ void cmMakefileTargetGenerator::AddIncludeFlags(std::string& flags,
 
   std::string includeFlags =
     this->LocalGenerator->GetIncludeFlags(includes, this->GeneratorTarget,
-                                          lang, useResponseFile);
+                                          lang, false, useResponseFile);
 
   // Register text include flags here, too
   std::vector<std::string> textIncludes;

@@ -75,6 +75,7 @@ function(compiler_id_detection outvar lang)
       Cray
       TI
       DigitalMars
+      Fujitsu
     )
     if (lang STREQUAL C)
       list(APPEND ordered_compilers

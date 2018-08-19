@@ -49,9 +49,11 @@ private:
     VALGRIND,
     PURIFY,
     BOUNDS_CHECKER,
-    // checkers after hear do not use the standard error list
+    // checkers after here do not use the standard error list
+    ADDRESS_SANITIZER,
     THREAD_SANITIZER,
-    ADDRESS_SANITIZER
+    MEMORY_SANITIZER,
+    UB_SANITIZER
   };
 public:
   enum { // Memory faults
@@ -145,10 +147,10 @@ private:
 
   ///! append MemoryTesterOutputFile to the test log
   void AppendMemTesterOutput(cmCTestTestHandler::cmCTestTestResult& res,
-                             int test);
+                             std::string const& filename);
 
   ///! generate the output filename for the given test index
-  std::string TestOutputFileName(int test);
+  void TestOutputFileNames(int test, std::vector<std::string>& files);
 };
 
 #endif

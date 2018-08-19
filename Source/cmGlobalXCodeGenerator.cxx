@@ -208,8 +208,11 @@ bool cmGlobalXCodeGenerator::SetGeneratorToolset(std::string const& ts,
   if(this->XcodeVersion >= 30)
     {
     this->GeneratorToolset = ts;
-    mf->AddDefinition("CMAKE_XCODE_PLATFORM_TOOLSET",
-                      this->GeneratorToolset.c_str());
+    if(!this->GeneratorToolset.empty())
+      {
+      mf->AddDefinition("CMAKE_XCODE_PLATFORM_TOOLSET",
+                        this->GeneratorToolset.c_str());
+      }
     return true;
     }
   else
@@ -830,12 +833,12 @@ cmGlobalXCodeGenerator::CreateXCodeFileReferenceFromPath(
   const std::string &lang,
   cmSourceFile* sf)
 {
-  cmStdString key = GetGroupMapKeyFromPath(cmtarget, fullpath);
+  std::string key = GetGroupMapKeyFromPath(cmtarget, fullpath);
   cmXCodeObject* fileRef = this->FileRefs[key];
   if(!fileRef)
     {
     fileRef = this->CreateObject(cmXCodeObject::PBXFileReference);
-    fileRef->SetComment(fullpath.c_str());
+    fileRef->SetComment(fullpath);
     this->FileRefs[key] = fileRef;
     }
   cmXCodeObject* group = this->GroupMap[key];
@@ -862,24 +865,24 @@ cmGlobalXCodeGenerator::CreateXCodeFileReferenceFromPath(
     }
   if(fileType.empty())
     {
+    // Compute the extension without leading '.'.
+    std::string ext = cmSystemTools::GetFilenameLastExtension(fullpath);
+    if(!ext.empty())
+      {
+      ext = ext.substr(1);
+      }
+
     // If fullpath references a directory, then we need to specify
     // lastKnownFileType as folder in order for Xcode to be able to
     // open the contents of the folder.
     // (Xcode 4.6 does not like explicitFileType=folder).
     if(cmSystemTools::FileIsDirectory(fullpath.c_str()))
       {
-      fileType = "folder";
+      fileType = (ext == "xcassets"? "folder.assetcatalog" : "folder");
       useLastKnownFileType = true;
       }
     else
       {
-      // Compute the extension without leading '.'.
-      std::string ext = cmSystemTools::GetFilenameLastExtension(fullpath);
-      if(!ext.empty())
-        {
-        ext = ext.substr(1);
-        }
-
       fileType = GetSourcecodeValueFromFileExtension(
         ext, lang, useLastKnownFileType);
       }

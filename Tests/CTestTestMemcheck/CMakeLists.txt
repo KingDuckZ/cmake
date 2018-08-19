@@ -103,11 +103,11 @@ unset(CTEST_EXTRA_CONFIG)
 unset(CTEST_EXTRA_CODE)
 unset(CMAKELISTS_EXTRA_CODE)
 
+#-----------------------------------------------------------------------------
 # add ThreadSanitizer test
 set(CTEST_EXTRA_CODE
 "set(CTEST_MEMORYCHECK_COMMAND_OPTIONS \"report_bugs=1 history_size=5 exitcode=55\")
 ")
-
 set(CMAKELISTS_EXTRA_CODE
 "add_test(NAME TestSan COMMAND \"${CMAKE_COMMAND}\"
 -P \"${CMAKE_CURRENT_SOURCE_DIR}/testThreadSanitizer.cmake\")
@@ -119,11 +119,11 @@ set_tests_properties(CTestTestMemcheckDummyThreadSanitizer PROPERTIES
 set(CMAKELISTS_EXTRA_CODE )
 set(CTEST_EXTRA_CODE)
 
+#-----------------------------------------------------------------------------
 # add LeakSanitizer test
 set(CTEST_EXTRA_CODE
-"set(CTEST_MEMORYCHECK_COMMAND_OPTIONS \"report_bugs=1 history_size=5 exitcode=55\")
+"set(CTEST_MEMORYCHECK_SANITIZER_OPTIONS \"simulate_sanitizer=1 report_bugs=1 history_size=5 exitcode=55\")
 ")
-
 set(CMAKELISTS_EXTRA_CODE
 "add_test(NAME TestSan COMMAND \"${CMAKE_COMMAND}\"
 -P \"${CMAKE_CURRENT_SOURCE_DIR}/testLeakSanitizer.cmake\")
@@ -134,11 +134,12 @@ set(CTEST_EXTRA_CODE)
 set_tests_properties(CTestTestMemcheckDummyLeakSanitizer PROPERTIES
     PASS_REGULAR_EXPRESSION
     ".*Memory checking results:.*Direct leak - 2.*Indirect leak - 1.*")
+
+#-----------------------------------------------------------------------------
 # add AddressSanitizer test
 set(CTEST_EXTRA_CODE
-"set(CTEST_MEMORYCHECK_COMMAND_OPTIONS \"report_bugs=1 history_size=5 exitcode=55\")
+"set(CTEST_MEMORYCHECK_SANITIZER_OPTIONS \"simulate_sanitizer=1 report_bugs=1 history_size=5 exitcode=55\")
 ")
-
 set(CMAKELISTS_EXTRA_CODE
 "add_test(NAME TestSan COMMAND \"${CMAKE_COMMAND}\"
 -P \"${CMAKE_CURRENT_SOURCE_DIR}/testAddressSanitizer.cmake\")
@@ -150,6 +151,41 @@ set_tests_properties(CTestTestMemcheckDummyAddressSanitizer PROPERTIES
     PASS_REGULAR_EXPRESSION
     ".*Memory checking results:.*heap-buffer-overflow - 1.*")
 
+#-----------------------------------------------------------------------------
+# add MemorySanitizer test
+set(CTEST_EXTRA_CODE
+"set(CTEST_MEMORYCHECK_COMMAND_OPTIONS \"simulate_sanitizer=1 report_bugs=1 history_size=5 exitcode=55\")
+")
+
+set(CMAKELISTS_EXTRA_CODE
+"add_test(NAME TestSan COMMAND \"${CMAKE_COMMAND}\"
+-P \"${CMAKE_CURRENT_SOURCE_DIR}/testMemorySanitizer.cmake\")
+")
+gen_mc_test_internal(DummyMemorySanitizer "" -DMEMCHECK_TYPE=MemorySanitizer)
+set(CMAKELISTS_EXTRA_CODE )
+set(CTEST_EXTRA_CODE)
+set_tests_properties(CTestTestMemcheckDummyMemorySanitizer PROPERTIES
+    PASS_REGULAR_EXPRESSION
+    ".*Memory checking results:.*use-of-uninitialized-value - 1.*")
+
+#-----------------------------------------------------------------------------
+# add UndefinedBehaviorSanitizer test
+set(CTEST_EXTRA_CODE
+"set(CTEST_MEMORYCHECK_SANITIZER_OPTIONS \"simulate_sanitizer=1\")
+")
+
+set(CMAKELISTS_EXTRA_CODE
+"add_test(NAME TestSan COMMAND \"${CMAKE_COMMAND}\"
+-P \"${CMAKE_CURRENT_SOURCE_DIR}/testUndefinedBehaviorSanitizer.cmake\")
+")
+gen_mc_test_internal(DummyUndefinedBehaviorSanitizer "" -DMEMCHECK_TYPE=UndefinedBehaviorSanitizer)
+set(CMAKELISTS_EXTRA_CODE )
+set(CTEST_EXTRA_CODE)
+set_tests_properties(CTestTestMemcheckDummyUndefinedBehaviorSanitizer PROPERTIES
+    PASS_REGULAR_EXPRESSION
+    ".*Memory checking results:.*left shift of negative value -256 - 1.*")
+
+#-----------------------------------------------------------------------------
 
 gen_mc_test(DummyPurify "\${PSEUDO_PURIFY}")
 gen_mc_test(DummyValgrind "\${PSEUDO_VALGRIND}")
@@ -225,7 +261,7 @@ set_tests_properties(CTestTestMemcheckDummyValgrindIgnoreMemcheck
     PASS_REGULAR_EXPRESSION "\n2/2 Test #2: RunCMakeAgain .*${ctest_and_tool_outputs}$")
 
 set_tests_properties(CTestTestMemcheckDummyBC PROPERTIES
-    PASS_REGULAR_EXPRESSION "\n1/1 MemCheck #1: RunCMake \\.+   Passed +[0-9]+.[0-9]+ sec\n\n100% tests passed, 0 tests failed out of 1\n(.*\n)?Error parsing XML in stream at line 1: no element found\n")
+    PASS_REGULAR_EXPRESSION "\n1/1 MemCheck #1: RunCMake \\.+   Passed +[0-9]+.[0-9]+ sec\n${guard_malloc_lines}\n100% tests passed, 0 tests failed out of 1\n(.*\n)?Error parsing XML in stream at line 1: no element found\n")
 
 set_tests_properties(CTestTestMemcheckDummyValgrindInvalidSupFile PROPERTIES
     PASS_REGULAR_EXPRESSION "\nCannot find memory checker suppression file: ${CTEST_ESCAPED_REALPATH_CMAKE_CURRENT_BINARY_DIR}/does-not-exist\n")

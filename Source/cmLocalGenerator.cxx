@@ -687,7 +687,7 @@ void cmLocalGenerator::AddBuildTargetRule(const std::string& llang,
         objVector.push_back(ofname);
         this->AddCustomCommandToCreateObject(ofname.c_str(),
                                              llang, *(*i), target);
-        objs += this->Convert(ofname,START_OUTPUT,MAKEFILE);
+        objs += this->Convert(ofname,START_OUTPUT,SHELL);
         objs += " ";
         }
       }
@@ -1293,9 +1293,11 @@ cmLocalGenerator::ConvertToOutputForExisting(RelativeRoot remote,
 //----------------------------------------------------------------------------
 std::string
 cmLocalGenerator::ConvertToIncludeReference(std::string const& path,
-                                            OutputFormat format)
+                                            OutputFormat format,
+                                            bool forceFullPaths)
 {
-  return this->ConvertToOutputForExisting(path, START_OUTPUT, format);
+  return this->ConvertToOutputForExisting(
+    path, forceFullPaths? FULL : START_OUTPUT, format);
 }
 
 //----------------------------------------------------------------------------
@@ -1303,6 +1305,7 @@ std::string cmLocalGenerator::GetIncludeFlags(
                                      const std::vector<std::string> &includes,
                                      cmGeneratorTarget* target,
                                      const std::string& lang,
+                                     bool forceFullPaths,
                                      bool forResponseFile,
                                      const std::string& config)
 {
@@ -1407,7 +1410,7 @@ std::string cmLocalGenerator::GetIncludeFlags(
       flagUsed = true;
       }
     std::string includePath =
-      this->ConvertToIncludeReference(*i, shellFormat);
+      this->ConvertToIncludeReference(*i, shellFormat, forceFullPaths);
     if(quotePaths && includePath.size() && includePath[0] != '\"')
       {
       includeFlags << "\"";
@@ -2967,7 +2970,7 @@ std::string cmLocalGenerator::ConvertToOutputFormat(const std::string& source,
 {
   std::string result = source;
   // Convert it to an output path.
-  if (output == MAKEFILE)
+  if (output == MAKERULE)
     {
     result = cmSystemTools::ConvertToOutputPath(result.c_str());
     }

@@ -106,7 +106,7 @@ public:
    * path setting
    */
   enum RelativeRoot { NONE, FULL, HOME, START, HOME_OUTPUT, START_OUTPUT };
-  enum OutputFormat { UNCHANGED, MAKEFILE, SHELL, WATCOMQUOTE, RESPONSE };
+  enum OutputFormat { UNCHANGED, MAKERULE, SHELL, WATCOMQUOTE, RESPONSE };
   std::string ConvertToOutputFormat(const std::string& source,
                                     OutputFormat output);
   std::string Convert(const std::string& remote, RelativeRoot local,
@@ -160,6 +160,7 @@ public:
   std::string GetIncludeFlags(const std::vector<std::string> &includes,
                               cmGeneratorTarget* target,
                               const std::string& lang,
+                              bool forceFullPaths = false,
                               bool forResponseFile = false,
                               const std::string& config = "");
   std::string GetTextIncludeFlags(const std::vector<std::string> &includes,
@@ -220,7 +221,8 @@ public:
                                          OutputFormat format = SHELL);
 
   virtual std::string ConvertToIncludeReference(std::string const& path,
-                                                OutputFormat format = SHELL);
+                                                OutputFormat format = SHELL,
+                                                bool forceFullPaths = false);
 
   /** Called from command-line hook to clear dependencies.  */
   virtual void ClearDependencies(cmMakefile* /* mf */,

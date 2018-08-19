@@ -76,18 +76,46 @@ cmGlobalGenerator::~cmGlobalGenerator()
     }
 }
 
+bool cmGlobalGenerator::SetGeneratorPlatform(std::string const& p,
+                                             cmMakefile* mf)
+{
+  if(p.empty())
+    {
+    return true;
+    }
+  else
+    {
+    cmOStringStream e;
+    e <<
+      "Generator\n"
+      "  " << this->GetName() << "\n"
+      "does not support platform specification, but platform\n"
+      "  " << p << "\n"
+      "was specified.";
+    mf->IssueMessage(cmake::FATAL_ERROR, e.str());
+    return false;
+    }
+}
+
 bool cmGlobalGenerator::SetGeneratorToolset(std::string const& ts,
                                             cmMakefile* mf)
 {
-  cmOStringStream e;
-  e <<
-    "Generator\n"
-    "  " << this->GetName() << "\n"
-    "does not support toolset specification, but toolset\n"
-    "  " << ts << "\n"
-    "was specified.";
-  mf->IssueMessage(cmake::FATAL_ERROR, e.str());
-  return false;
+  if(ts.empty())
+    {
+    return true;
+    }
+  else
+    {
+    cmOStringStream e;
+    e <<
+      "Generator\n"
+      "  " << this->GetName() << "\n"
+      "does not support toolset specification, but toolset\n"
+      "  " << ts << "\n"
+      "was specified.";
+    mf->IssueMessage(cmake::FATAL_ERROR, e.str());
+    return false;
+    }
 }
 
 std::string cmGlobalGenerator::SelectMakeProgram(
@@ -148,8 +176,6 @@ void cmGlobalGenerator::ResolveLanguageCompiler(const std::string &lang,
     {
     return;
     }
-  std::string doc = lang;
-  doc += " compiler.";
   const char* cname = this->GetCMakeInstance()->
     GetCacheManager()->GetCacheValue(langComp);
   std::string changeVars;
@@ -186,8 +212,6 @@ void cmGlobalGenerator::ResolveLanguageCompiler(const std::string &lang,
         changeVars.c_str());
       }
     }
-  mf->AddCacheDefinition(langComp, path.c_str(),
-                         doc.c_str(), cmCacheManager::FILEPATH);
 }
 
 void cmGlobalGenerator::AddBuildExportSet(cmExportBuildFileGenerator* gen)
@@ -294,7 +318,7 @@ void cmGlobalGenerator::FindMakeProgram(cmMakefile* mf)
     // will run xcodebuild and if it sees the error text file busy
     // it will stop forwarding output, and let the build finish.
     // Then it will retry the build.  It will continue this
-    // untill no text file busy errors occur.
+    // until no text file busy errors occur.
     std::string cmakexbuild =
       this->CMakeInstance->GetCacheManager()->GetCacheValue("CMAKE_COMMAND");
     cmakexbuild = cmakexbuild.substr(0, cmakexbuild.length()-5);
@@ -414,7 +438,8 @@ cmGlobalGenerator::EnableLanguage(std::vector<std::string>const& languages,
 
   // try and load the CMakeSystem.cmake if it is there
   std::string fpath = rootBin;
-  if(!mf->GetDefinition("CMAKE_SYSTEM_LOADED"))
+  bool const readCMakeSystem = !mf->GetDefinition("CMAKE_SYSTEM_LOADED");
+  if(readCMakeSystem)
     {
     fpath += "/CMakeSystem.cmake";
     if(cmSystemTools::FileExists(fpath.c_str()))
@@ -448,21 +473,31 @@ cmGlobalGenerator::EnableLanguage(std::vector<std::string>const& languages,
     mf->ReadListFile(0,fpath.c_str());
     }
 
-  // Tell the generator about the target system.
-  std::string system = mf->GetSafeDefinition("CMAKE_SYSTEM_NAME");
-  if(!this->SetSystemName(system, mf))
+  if(readCMakeSystem)
     {
-    cmSystemTools::SetFatalErrorOccured();
-    return;
-    }
+    // Tell the generator about the target system.
+    std::string system = mf->GetSafeDefinition("CMAKE_SYSTEM_NAME");
+    if(!this->SetSystemName(system, mf))
+      {
+      cmSystemTools::SetFatalErrorOccured();
+      return;
+      }
 
-  // Tell the generator about the toolset, if any.
-  std::string toolset = mf->GetSafeDefinition("CMAKE_GENERATOR_TOOLSET");
-  if(!toolset.empty() &&
-     !this->SetGeneratorToolset(toolset, mf))
-    {
-    cmSystemTools::SetFatalErrorOccured();
-    return;
+    // Tell the generator about the platform, if any.
+    std::string platform = mf->GetSafeDefinition("CMAKE_GENERATOR_PLATFORM");
+    if(!this->SetGeneratorPlatform(platform, mf))
+      {
+      cmSystemTools::SetFatalErrorOccured();
+      return;
+      }
+
+    // Tell the generator about the toolset, if any.
+    std::string toolset = mf->GetSafeDefinition("CMAKE_GENERATOR_TOOLSET");
+    if(!this->SetGeneratorToolset(toolset, mf))
+      {
+      cmSystemTools::SetFatalErrorOccured();
+      return;
+      }
     }
 
   // **** Load the system specific initialization if not yet loaded
@@ -471,8 +506,8 @@ cmGlobalGenerator::EnableLanguage(std::vector<std::string>const& languages,
     fpath = mf->GetModulesFile("CMakeSystemSpecificInitialize.cmake");
     if(!mf->ReadListFile(0,fpath.c_str()))
       {
-      cmSystemTools::Error("Could not find cmake module file: ",
-                           fpath.c_str());
+      cmSystemTools::Error("Could not find cmake module file: "
+                           "CMakeSystemSpecificInitialize.cmake");
       }
     }
 
@@ -540,7 +575,7 @@ cmGlobalGenerator::EnableLanguage(std::vector<std::string>const& languages,
       if(!mf->ReadListFile(0,determineFile.c_str()))
         {
         cmSystemTools::Error("Could not find cmake module file: ",
-                             determineFile.c_str());
+                             determineCompiler.c_str());
         }
       needTestLanguage[lang] = true;
       // Some generators like visual studio should not use the env variables
@@ -592,8 +627,8 @@ cmGlobalGenerator::EnableLanguage(std::vector<std::string>const& languages,
     fpath = mf->GetModulesFile("CMakeSystemSpecificInformation.cmake");
     if(!mf->ReadListFile(0,fpath.c_str()))
       {
-      cmSystemTools::Error("Could not find cmake module file: ",
-                           fpath.c_str());
+      cmSystemTools::Error("Could not find cmake module file: "
+                           "CMakeSystemSpecificInformation.cmake");
       }
     }
   // loop over languages again loading CMake(LANG)Information.cmake
@@ -624,7 +659,8 @@ cmGlobalGenerator::EnableLanguage(std::vector<std::string>const& languages,
         "No " << compilerName << " could be found.\n"
         ;
       }
-    else if(strcmp(lang, "RC") != 0)
+    else if(strcmp(lang, "RC") != 0 &&
+            strcmp(lang, "ASM_MASM") != 0)
       {
       if(!cmSystemTools::FileIsFullPath(compilerFile))
         {
@@ -708,7 +744,7 @@ cmGlobalGenerator::EnableLanguage(std::vector<std::string>const& languages,
         if(!mf->ReadListFile(0,ifpath.c_str()))
           {
           cmSystemTools::Error("Could not find cmake module file: ",
-                               ifpath.c_str());
+                               testLang.c_str());
           }
         std::string compilerWorks = "CMAKE_";
         compilerWorks += lang;
@@ -972,9 +1008,9 @@ void cmGlobalGenerator::SetLanguageEnabledMaps(const std::string& l,
     if (sscanf(linkerPref, "%d", &preference)!=1)
       {
       // backward compatibility: before 2.6 LINKER_PREFERENCE
-      // was either "None" or "Prefered", and only the first character was
+      // was either "None" or "Preferred", and only the first character was
       // tested. So if there is a custom language out there and it is
-      // "Prefered", set its preference high
+      // "Preferred", set its preference high
       if (linkerPref[0]=='P')
         {
         preference = 100;
@@ -1161,7 +1197,7 @@ bool cmGlobalGenerator::CheckALLOW_DUPLICATE_CUSTOM_TARGETS() const
   return false;
 }
 
-void cmGlobalGenerator::Generate()
+void cmGlobalGenerator::DoGenerate()
 {
   // Some generators track files replaced during the Generate.
   // Start with an empty vector:
@@ -1170,6 +1206,11 @@ void cmGlobalGenerator::Generate()
   // clear targets to issue warning CMP0042 for
   this->CMP0042WarnTargets.clear();
 
+  this->Generate();
+}
+
+void cmGlobalGenerator::Generate()
+{
   // Check whether this generator is allowed to run.
   if(!this->CheckALLOW_DUPLICATE_CUSTOM_TARGETS())
     {
@@ -1623,7 +1664,7 @@ int cmGlobalGenerator::TryCompile(const std::string& srcdir,
                                   const std::string& bindir,
                                   const std::string& projectName,
                                   const std::string& target, bool fast,
-                                  std::string *output, cmMakefile *mf)
+                                  std::string& output, cmMakefile *mf)
 {
   // if this is not set, then this is a first time configure
   // and there is a good chance that the try compile stuff will
@@ -1682,7 +1723,7 @@ void cmGlobalGenerator::GenerateBuildCommand(
 int cmGlobalGenerator::Build(
   const std::string&, const std::string& bindir,
   const std::string& projectName, const std::string& target,
-  std::string *output,
+  std::string& output,
   const std::string& makeCommandCSTR,
   const std::string& config,
   bool clean, bool fast,
@@ -1695,22 +1736,15 @@ int cmGlobalGenerator::Build(
    */
   std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
   cmSystemTools::ChangeDirectory(bindir.c_str());
-  if(output)
-    {
-    *output += "Change Dir: ";
-    *output += bindir;
-    *output += "\n";
-    }
+  output += "Change Dir: ";
+  output += bindir;
+  output += "\n";
 
   int retVal;
   bool hideconsole = cmSystemTools::GetRunCommandHideConsole();
   cmSystemTools::SetRunCommandHideConsole(true);
   std::string outputBuffer;
-  std::string* outputPtr = 0;
-  if(output)
-    {
-    outputPtr = &outputBuffer;
-    }
+  std::string* outputPtr = &outputBuffer;
 
   // should we do a clean first?
   if (clean)
@@ -1718,32 +1752,23 @@ int cmGlobalGenerator::Build(
     std::vector<std::string> cleanCommand;
     this->GenerateBuildCommand(cleanCommand, makeCommandCSTR, projectName,
                                bindir, "clean", config, fast);
-    if(output)
-      {
-      *output += "\nRun Clean Command:";
-      *output += cmSystemTools::PrintSingleCommand(cleanCommand);
-      *output += "\n";
-      }
+    output += "\nRun Clean Command:";
+    output += cmSystemTools::PrintSingleCommand(cleanCommand);
+    output += "\n";
 
     if (!cmSystemTools::RunSingleCommand(cleanCommand, outputPtr,
                                          &retVal, 0, outputflag, timeout))
       {
       cmSystemTools::SetRunCommandHideConsole(hideconsole);
       cmSystemTools::Error("Generator: execution of make clean failed.");
-      if (output)
-        {
-        *output += *outputPtr;
-        *output += "\nGenerator: execution of make clean failed.\n";
-        }
+      output += *outputPtr;
+      output += "\nGenerator: execution of make clean failed.\n";
 
       // return to the original directory
       cmSystemTools::ChangeDirectory(cwd.c_str());
       return 1;
       }
-    if (output)
-      {
-      *output += *outputPtr;
-      }
+    output += *outputPtr;
     }
 
   // now build
@@ -1751,12 +1776,9 @@ int cmGlobalGenerator::Build(
   this->GenerateBuildCommand(makeCommand, makeCommandCSTR, projectName,
                              bindir, target, config, fast, nativeOptions);
   std::string makeCommandStr = cmSystemTools::PrintSingleCommand(makeCommand);
-  if(output)
-    {
-    *output += "\nRun Build Command:";
-    *output += makeCommandStr;
-    *output += "\n";
-    }
+  output += "\nRun Build Command:";
+  output += makeCommandStr;
+  output += "\n";
 
   if (!cmSystemTools::RunSingleCommand(makeCommand, outputPtr,
                                        &retVal, 0, outputflag, timeout))
@@ -1765,27 +1787,21 @@ int cmGlobalGenerator::Build(
     cmSystemTools::Error
       ("Generator: execution of make failed. Make command was: ",
        makeCommandStr.c_str());
-    if (output)
-      {
-      *output += *outputPtr;
-      *output += "\nGenerator: execution of make failed. Make command was: "
+    output += *outputPtr;
+    output += "\nGenerator: execution of make failed. Make command was: "
         + makeCommandStr + "\n";
-      }
 
     // return to the original directory
     cmSystemTools::ChangeDirectory(cwd.c_str());
     return 1;
     }
-  if (output)
-    {
-    *output += *outputPtr;
-    }
+  output += *outputPtr;
   cmSystemTools::SetRunCommandHideConsole(hideconsole);
 
   // The SGI MipsPro 7.3 compiler does not return an error code when
   // the source has a #error in it!  This is a work-around for such
   // compilers.
-  if((retVal == 0) && (output->find("#error") != std::string::npos))
+  if((retVal == 0) && (output.find("#error") != std::string::npos))
     {
     retVal = 1;
     }

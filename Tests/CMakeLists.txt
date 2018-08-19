@@ -87,6 +87,11 @@ if(BUILD_TESTING)
   set(build_generator_args
     --build-generator ${CMAKE_GENERATOR}
     )
+  if(CMAKE_GENERATOR_PLATFORM)
+    list(APPEND build_generator_args
+      --build-generator-platform ${CMAKE_GENERATOR_PLATFORM}
+      )
+  endif()
   if(CMAKE_GENERATOR_TOOLSET)
     list(APPEND build_generator_args
       --build-generator-toolset ${CMAKE_GENERATOR_TOOLSET}
@@ -509,6 +514,7 @@ if(BUILD_TESTING)
          "${CMake_BINARY_DIR}/Tests/Simple_EclipseGenerator"
          --build-two-config
          --build-generator "Eclipse CDT4 - Unix Makefiles"
+         --build-generator-platform "${CMAKE_GENERATOR_PLATFORM}"
          --build-generator-toolset "${CMAKE_GENERATOR_TOOLSET}"
          --build-project Simple
          --build-options ${build_options}
@@ -524,6 +530,7 @@ if(BUILD_TESTING)
          "${CMake_BINARY_DIR}/Tests/Simple_CodeBlocksGenerator"
          --build-two-config
          --build-generator "CodeBlocks - Unix Makefiles"
+         --build-generator-platform "${CMAKE_GENERATOR_PLATFORM}"
          --build-generator-toolset "${CMAKE_GENERATOR_TOOLSET}"
          --build-project Simple
          --build-options ${build_options}
@@ -538,6 +545,7 @@ if(BUILD_TESTING)
          "${CMake_BINARY_DIR}/Tests/Simple_KDevelop3Generator"
          --build-two-config
          --build-generator "KDevelop3 - Unix Makefiles"
+         --build-generator-platform "${CMAKE_GENERATOR_PLATFORM}"
          --build-generator-toolset "${CMAKE_GENERATOR_TOOLSET}"
          --build-project Simple
          --build-options ${build_options}
@@ -578,6 +586,7 @@ if(BUILD_TESTING)
       "${CMake_SOURCE_DIR}/Tests/SubProject/foo"
       "${CMake_BINARY_DIR}/Tests/SubProject/foo"
       --build-generator ${CMAKE_GENERATOR}
+      --build-generator-platform "${CMAKE_GENERATOR_PLATFORM}"
       --build-generator-toolset "${CMAKE_GENERATOR_TOOLSET}"
       ${SubProject-Stage2_BUILD_MAKEPROGRAM}
       --build-nocmake
@@ -864,6 +873,10 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
           "-DCPackWiXGenerator_BINARY_DIR:PATH=${CMake_BINARY_DIR}/Tests/CPackWiXGenerator"
           "-Dconfig=\${CTEST_CONFIGURATION_TYPE}"
           -P "${CMake_SOURCE_DIR}/Tests/CPackWiXGenerator/RunCPackVerifyResult.cmake")
+
+      set_property(TEST CPackWiXGenerator PROPERTY
+        ATTACHED_FILES_ON_FAIL
+        "${CMake_BINARY_DIR}/Tests/CPackWiXGenerator/_CPack_Packages/win32/WIX/wix.log")
     endif()
   endif()
 
@@ -1285,6 +1298,7 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
     -DExternalProjectUpdate_SOURCE_DIR:PATH=${CMake_SOURCE_DIR}/Tests/ExternalProjectUpdate
     -DExternalProjectUpdate_BINARY_DIR:PATH=${CMake_BINARY_DIR}/Tests/ExternalProjectUpdate
     -DCMAKE_GENERATOR=${CMAKE_GENERATOR}
+    -DCMAKE_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}
     -DCMAKE_GENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}
     -DCMAKE_CTEST_COMMAND=${CMAKE_CTEST_COMMAND}
     -P ${CMake_SOURCE_DIR}/Tests/ExternalProjectUpdate/ExternalProjectUpdateTest.cmake
@@ -1389,7 +1403,7 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
     )
   list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/Dependency")
 
-  if("${CMAKE_SYSTEM_NAME}" MATCHES syllable)
+  if(CMAKE_SYSTEM_NAME MATCHES syllable)
 
 # RPATH isn't supported under Syllable, so the tests don't
 # find their libraries. In order to fix that LIBRARY_OUTPUT_DIR
@@ -1680,6 +1694,14 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
     list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/MFC")
   endif()
 
+  if(MSVC AND NOT MSVC_VERSION LESS 1310
+     AND NOT CMAKE_GENERATOR MATCHES "Visual Studio [67]( |$)"
+     AND (NOT CMAKE_GENERATOR MATCHES "Visual Studio [89]( |$)"
+          OR CMAKE_SIZEOF_VOID_P EQUAL 4)
+      )
+    ADD_TEST_MACRO(VSMASM VSMASM)
+  endif()
+
   if(${CMAKE_GENERATOR} MATCHES "Visual Studio")
     if(NOT MSVC60)
       ADD_TEST_MACRO(SBCS SBCS)
@@ -1726,6 +1748,7 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
           --build-two-config
           --build-generator ${CMAKE_GENERATOR}
           --build-makeprogram ${CMake_TEST_DEVENV}
+          --build-generator-platform "${CMAKE_GENERATOR_PLATFORM}"
           --build-generator-toolset "${CMAKE_GENERATOR_TOOLSET}"
           --build-project VSExcludeFromDefaultBuild
           --test-command ${CMAKE_COMMAND}
@@ -1750,10 +1773,90 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
         "${CMake_BINARY_DIR}/Tests/VSProjectInSubdir"
         --build-two-config
         --build-generator ${CMAKE_GENERATOR}
+        --build-generator-platform "${CMAKE_GENERATOR_PLATFORM}"
         --build-generator-toolset "${CMAKE_GENERATOR_TOOLSET}"
         --build-project VSProjectInSubdir
         --build-target test)
       list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/VSProjectInSubdir")
+    endif()
+  endif()
+
+  if(WIN32)
+    set(reg_vs10 "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\10.0;InstallDir]")
+    set(reg_vs11 "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\11.0;InstallDir]")
+    set(reg_vs12 "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\12.0;InstallDir]")
+    set(reg_ws80 "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Microsoft SDKs\\Windows\\v8.0;InstallationFolder]")
+    set(reg_ws81 "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Microsoft SDKs\\Windows\\v8.1;InstallationFolder]")
+    set(reg_wp80 "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Microsoft SDKs\\WindowsPhone\\v8.0;InstallationFolder]")
+    set(reg_wp81 "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Microsoft SDKs\\WindowsPhone\\v8.1;InstallationFolder]")
+    set(reg_tegra "[HKEY_LOCAL_MACHINE\\SOFTWARE\\NVIDIA Corporation\\Nsight Tegra;sdkRoot]")
+    foreach(reg vs10 vs11 vs12 ws80 ws81 wp80 wp81 tegra)
+      get_filename_component(r "${reg_${reg}}" ABSOLUTE)
+      if(IS_DIRECTORY "${r}")
+        set(${reg} 1)
+      else()
+        set(${reg} 0)
+      endif()
+    endforeach()
+  endif()
+
+  get_filename_component(ntver "[HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows NT\\CurrentVersion;CurrentVersion]" NAME)
+  if(WIN32 AND ntver VERSION_GREATER 6.1) # Windows >= 8.0
+    macro(add_test_VSWinStorePhone name generator systemName systemVersion)
+      add_test(NAME VSWinStorePhone.${name} COMMAND ${CMAKE_CTEST_COMMAND}
+        --build-and-test
+        "${CMake_SOURCE_DIR}/Tests/VSWinStorePhone"
+        "${CMake_BINARY_DIR}/Tests/VSWinStorePhone/${name}"
+        --build-generator "${generator}"
+        --build-project VSWinStorePhone
+        --build-config $<CONFIGURATION>
+        --build-options -DCMAKE_SYSTEM_NAME=${systemName}
+                        -DCMAKE_SYSTEM_VERSION=${systemVersion}
+        )
+      list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/VSWinStorePhone/${name}")
+    endmacro()
+
+    if(vs11 AND ws80)
+      add_test_VSWinStorePhone(vs11-store80-X86 "Visual Studio 11 2012" WindowsStore 8.0)
+      add_test_VSWinStorePhone(vs11-store80-ARM "Visual Studio 11 2012 ARM" WindowsStore 8.0)
+      add_test_VSWinStorePhone(vs11-store80-X64 "Visual Studio 11 2012 Win64" WindowsStore 8.0)
+    endif()
+    if(vs12 AND ws81)
+      add_test_VSWinStorePhone(vs12-store81-X86 "Visual Studio 12 2013" WindowsStore 8.1)
+      add_test_VSWinStorePhone(vs12-store81-ARM "Visual Studio 12 2013 ARM" WindowsStore 8.1)
+      add_test_VSWinStorePhone(vs12-store81-X64 "Visual Studio 12 2013 Win64" WindowsStore 8.1)
+    endif()
+    if(vs11 AND wp80)
+      add_test_VSWinStorePhone(vs11-phone80-X86 "Visual Studio 11 2012" WindowsPhone 8.0)
+      add_test_VSWinStorePhone(vs11-phone80-ARM "Visual Studio 11 2012 ARM" WindowsPhone 8.0)
+    endif()
+    if(vs12 AND wp81)
+      add_test_VSWinStorePhone(vs12-phone81-X86 "Visual Studio 12 2013" WindowsPhone 8.1)
+      add_test_VSWinStorePhone(vs12-phone81-ARM "Visual Studio 12 2013 ARM" WindowsPhone 8.1)
+    endif()
+  endif()
+
+  if(tegra AND NOT "${CMake_SOURCE_DIR};${CMake_BINARY_DIR}" MATCHES " ")
+    macro(add_test_VSNsightTegra name generator)
+      add_test(NAME VSNsightTegra.${name} COMMAND ${CMAKE_CTEST_COMMAND}
+        --build-and-test
+        "${CMake_SOURCE_DIR}/Tests/VSNsightTegra"
+        "${CMake_BINARY_DIR}/Tests/VSNsightTegra/${name}"
+        --build-generator "${generator}"
+        --build-project VSNsightTegra
+        --build-config $<CONFIGURATION>
+        --build-options -DCMAKE_SYSTEM_NAME=Android
+        )
+      list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/VSNsightTegra/${name}")
+    endmacro()
+    if(vs10)
+      add_test_VSNsightTegra(vs10 "Visual Studio 10 2010")
+    endif()
+    if(vs11)
+      add_test_VSNsightTegra(vs11 "Visual Studio 11 2012")
+    endif()
+    if(vs12)
+      add_test_VSNsightTegra(vs12 "Visual Studio 12 2013")
     endif()
   endif()
 
@@ -1914,6 +2017,9 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
 
   # A test for ctest_build() with targets in subdirectories
   set(ctest_configure_options)
+  if(CMAKE_GENERATOR_PLATFORM)
+    list(APPEND ctest_configure_options -A ${CMAKE_GENERATOR_PLATFORM})
+  endif()
   if(CMAKE_GENERATOR_TOOLSET)
     list(APPEND ctest_configure_options -T ${CMAKE_GENERATOR_TOOLSET})
   endif()
@@ -2161,7 +2267,7 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
     $<TARGET_FILE:ctest> -T Coverage --debug)
   set_tests_properties(CTestGTMCoverage PROPERTIES
       PASS_REGULAR_EXPRESSION
-      "Process file.*ZZCOVTST.m.*Total LOC:.*23.*Percentage Coverage: 82.61*"
+      "Process file.*ZZCOVTST.m.*Total LOC:.*30.*Percentage Coverage: 80.00*"
       ENVIRONMENT COVFILE=)
 
   configure_file(
@@ -2179,7 +2285,7 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
     $<TARGET_FILE:ctest> -T Coverage --debug)
   set_tests_properties(CTestCacheCoverage PROPERTIES
       PASS_REGULAR_EXPRESSION
-      "Process file.*ZZCOVTST.m.*Total LOC:.*22.*Percentage Coverage: 86.36.*"
+      "Process file.*ZZCOVTST.m.*Total LOC:.*29.*Percentage Coverage: 86.21.*"
       ENVIRONMENT COVFILE=)
 
   # Adding a test case for Python Coverage
@@ -2533,7 +2639,7 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
   set(regex "${regex}|Error message was: ")
   set(regex "${regex}([Cc]ould *n.t resolve host")
   set(regex "${regex}|[Cc]ould *n.t connect to host")
-  set(regex "${regex}|Failed connect to")
+  set(regex "${regex}|Failed *t*o* connect to")
   set(regex "${regex}|Empty reply from server")
   set(regex "${regex}|The requested URL returned error")
   set(regex "${regex}|libcurl was built with SSL disabled. https: not supported)")

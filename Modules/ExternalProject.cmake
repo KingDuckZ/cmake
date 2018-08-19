@@ -26,7 +26,7 @@
 #    [CVS_MODULE mod]            # Module to checkout from CVS repo
 #    [CVS_TAG tag]               # Tag to checkout from CVS repo
 #    [SVN_REPOSITORY url]        # URL of Subversion repo
-#    [SVN_REVISION rev]          # Revision to checkout from Subversion repo
+#    [SVN_REVISION -r<rev>]      # Revision to checkout from Subversion repo
 #    [SVN_USERNAME john ]        # Username for Subversion checkout and update
 #    [SVN_PASSWORD doe ]         # Password for Subversion checkout and update
 #    [SVN_TRUST_CERT 1 ]         # Trust the Subversion server site certificate
@@ -49,6 +49,7 @@
 #    [CONFIGURE_COMMAND cmd...]  # Build tree configuration command
 #    [CMAKE_COMMAND /.../cmake]  # Specify alternative cmake executable
 #    [CMAKE_GENERATOR gen]       # Specify generator for native build
+#    [CMAKE_GENERATOR_PLATFORM p] # Generator-specific platform name
 #    [CMAKE_GENERATOR_TOOLSET t] # Generator-specific toolset name
 #    [CMAKE_ARGS args...]        # Arguments to CMake command line
 #    [CMAKE_CACHE_ARGS args...]  # Initial cache arguments, of the form -Dvar:string=on
@@ -239,7 +240,7 @@ function(_ep_parse_arguments f name ns args)
     set(is_value 1)
 
     if(arg MATCHES "^[A-Z][A-Z0-9_][A-Z0-9_]+$" AND
-        NOT ((arg STREQUAL "${key}") AND (key STREQUAL "COMMAND")) AND
+        NOT (("x${arg}x" STREQUAL "x${key}x") AND ("x${key}x" STREQUAL "xCOMMANDx")) AND
         NOT arg MATCHES "^(TRUE|FALSE)$")
       if(_ep_keywords_${f} AND arg MATCHES "${_ep_keywords_${f}}")
         set(is_value 0)
@@ -627,11 +628,6 @@ function(_ep_write_downloadfile_script script_filename remote local timeout no_p
     set(show_progress "SHOW_PROGRESS")
   endif()
 
-  if("${hash}" MATCHES "${_ep_hash_regex}")
-    set(hash_args EXPECTED_HASH ${CMAKE_MATCH_1}=${CMAKE_MATCH_2})
-  else()
-    set(hash_args "# no EXPECTED_HASH")
-  endif()
   # check for curl globals in the project
   if(DEFINED CMAKE_TLS_VERIFY)
     set(tls_verify "set(CMAKE_TLS_VERIFY ${CMAKE_TLS_VERIFY})")
@@ -667,7 +663,6 @@ file(DOWNLOAD
   \"${remote}\"
   \"${local}\"
   ${show_progress}
-  ${hash_args}
   ${timeout_args}
   STATUS status
   LOG log)
@@ -738,7 +733,7 @@ endfunction()
 function(_ep_write_extractfile_script script_filename name filename directory)
   set(args "")
 
-  if(filename MATCHES "(\\.|=)(bz2|tar\\.gz|tgz|zip)$")
+  if(filename MATCHES "(\\.|=)(7z|tar\\.bz2|tar\\.gz|tar\\.xz|tbz2|tgz|txz|zip)$")
     set(args xfz)
   endif()
 
@@ -747,7 +742,7 @@ function(_ep_write_extractfile_script script_filename name filename directory)
   endif()
 
   if(args STREQUAL "")
-    message(SEND_ERROR "error: do not know how to extract '${filename}' -- known types are .bz2, .tar, .tar.gz, .tgz and .zip")
+    message(SEND_ERROR "error: do not know how to extract '${filename}' -- known types are .7z, .tar, .tar.bz2, .tar.gz, .tar.xz, .tbz2, .tgz, .txz and .zip")
     return()
   endif()
 
@@ -1541,11 +1536,11 @@ function(_ep_add_download_command name)
         if("x${fname}" STREQUAL "x")
           string(REGEX MATCH "[^/\\?]*$" fname "${url}")
         endif()
-        if(NOT "${fname}" MATCHES "(\\.|=)(bz2|tar|tgz|tar\\.gz|zip)$")
-          string(REGEX MATCH "([^/\\?]+(\\.|=)(bz2|tar|tgz|tar\\.gz|zip))/.*$" match_result "${url}")
+        if(NOT "${fname}" MATCHES "(\\.|=)(7z|tar|tar\\.bz2|tar\\.gz|tar\\.xz|tbz2|tgz|txz|zip)$")
+          string(REGEX MATCH "([^/\\?]+(\\.|=)(7z|tar|tar\\.bz2|tar\\.gz|tar\\.xz|tbz2|tgz|txz|zip))/.*$" match_result "${url}")
           set(fname "${CMAKE_MATCH_1}")
         endif()
-        if(NOT "${fname}" MATCHES "(\\.|=)(bz2|tar|tgz|tar\\.gz|zip)$")
+        if(NOT "${fname}" MATCHES "(\\.|=)(7z|tar|tar\\.bz2|tar\\.gz|tar\\.xz|tbz2|tgz|txz|zip)$")
           message(FATAL_ERROR "Could not extract tarball filename from url:\n  ${url}")
         endif()
         string(REPLACE ";" "-" fname "${fname}")
@@ -1758,9 +1753,13 @@ function(_ep_add_configure_command name)
     endif()
 
     get_target_property(cmake_generator ${name} _EP_CMAKE_GENERATOR)
+    get_target_property(cmake_generator_platform ${name} _EP_CMAKE_GENERATOR_PLATFORM)
     get_target_property(cmake_generator_toolset ${name} _EP_CMAKE_GENERATOR_TOOLSET)
     if(cmake_generator)
       list(APPEND cmd "-G${cmake_generator}")
+      if(cmake_generator_platform)
+        list(APPEND cmd "-A${cmake_generator_platform}")
+      endif()
       if(cmake_generator_toolset)
         list(APPEND cmd "-T${cmake_generator_toolset}")
       endif()
@@ -1769,6 +1768,12 @@ function(_ep_add_configure_command name)
         list(APPEND cmd "-G${CMAKE_EXTRA_GENERATOR} - ${CMAKE_GENERATOR}")
       else()
         list(APPEND cmd "-G${CMAKE_GENERATOR}")
+      endif()
+      if(cmake_generator_platform)
+        message(FATAL_ERROR "Option CMAKE_GENERATOR_PLATFORM not allowed without CMAKE_GENERATOR.")
+      endif()
+      if(CMAKE_GENERATOR_PLATFORM)
+        list(APPEND cmd "-A${CMAKE_GENERATOR_PLATFORM}")
       endif()
       if(cmake_generator_toolset)
         message(FATAL_ERROR "Option CMAKE_GENERATOR_TOOLSET not allowed without CMAKE_GENERATOR.")

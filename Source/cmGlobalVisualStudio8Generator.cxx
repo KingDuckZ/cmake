@@ -136,6 +136,14 @@ void cmGlobalVisualStudio8Generator
 ::EnableLanguage(std::vector<std::string>const &  lang,
                  cmMakefile *mf, bool optional)
 {
+  for(std::vector<std::string>::const_iterator it = lang.begin();
+      it != lang.end(); ++it)
+    {
+    if(*it == "ASM_MASM")
+      {
+      this->MasmEnabled = true;
+      }
+    }
   this->AddPlatformDefinitions(mf);
   cmGlobalVisualStudio7Generator::EnableLanguage(lang, mf, optional);
 }
@@ -148,6 +156,21 @@ void cmGlobalVisualStudio8Generator::AddPlatformDefinitions(cmMakefile* mf)
     mf->AddDefinition("CMAKE_VS_WINCE_VERSION",
       this->WindowsCEVersion.c_str());
   }
+}
+
+//----------------------------------------------------------------------------
+bool cmGlobalVisualStudio8Generator::SetGeneratorPlatform(std::string const& p,
+                                                          cmMakefile* mf)
+{
+  if(this->DefaultPlatformName == "Win32")
+    {
+    this->GeneratorPlatform = p;
+    return this->cmGlobalVisualStudio7Generator::SetGeneratorPlatform("", mf);
+    }
+  else
+    {
+    return this->cmGlobalVisualStudio7Generator::SetGeneratorPlatform(p, mf);
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -398,9 +421,7 @@ cmGlobalVisualStudio8Generator
                platformMapping : this->GetPlatformName())
            << "\n";
       }
-    bool needsDeploy = (type == cmTarget::EXECUTABLE ||
-                        type == cmTarget::SHARED_LIBRARY);
-    if(this->TargetsWindowsCE() && needsDeploy)
+    if(this->NeedsDeploy(type))
       {
       fout << "\t\t{" << guid << "}." << *i
            << "|" << this->GetPlatformName() << ".Deploy.0 = " << *i << "|"
@@ -409,6 +430,15 @@ cmGlobalVisualStudio8Generator
            << "\n";
       }
     }
+}
+
+//----------------------------------------------------------------------------
+bool
+cmGlobalVisualStudio8Generator::NeedsDeploy(cmTarget::TargetType type) const
+{
+  bool needsDeploy = (type == cmTarget::EXECUTABLE ||
+                      type == cmTarget::SHARED_LIBRARY);
+  return this->TargetsWindowsCE() && needsDeploy;
 }
 
 //----------------------------------------------------------------------------

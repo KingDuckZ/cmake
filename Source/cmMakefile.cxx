@@ -3356,6 +3356,7 @@ void cmMakefile::PopFunctionBlockerBarrier(bool reportError)
   this->FunctionBlockerBarriers.pop_back();
 }
 
+//----------------------------------------------------------------------------
 bool cmMakefile::ExpandArguments(
   std::vector<cmListFileArgument> const& inArgs,
   std::vector<std::string>& outArgs) const
@@ -3386,6 +3387,47 @@ bool cmMakefile::ExpandArguments(
     else
       {
       cmSystemTools::ExpandListArgument(value, outArgs);
+      }
+    }
+  return !cmSystemTools::GetFatalErrorOccured();
+}
+
+//----------------------------------------------------------------------------
+bool cmMakefile::ExpandArguments(
+  std::vector<cmListFileArgument> const& inArgs,
+  std::vector<cmExpandedCommandArgument>& outArgs) const
+{
+  std::vector<cmListFileArgument>::const_iterator i;
+  std::string value;
+  outArgs.reserve(inArgs.size());
+  for(i = inArgs.begin(); i != inArgs.end(); ++i)
+    {
+    // No expansion in a bracket argument.
+    if(i->Delim == cmListFileArgument::Bracket)
+      {
+      outArgs.push_back(cmExpandedCommandArgument(i->Value, true));
+      continue;
+      }
+    // Expand the variables in the argument.
+    value = i->Value;
+    this->ExpandVariablesInString(value, false, false, false,
+                                  i->FilePath, i->Line,
+                                  false, false);
+
+    // If the argument is quoted, it should be one argument.
+    // Otherwise, it may be a list of arguments.
+    if(i->Delim == cmListFileArgument::Quoted)
+      {
+      outArgs.push_back(cmExpandedCommandArgument(value, true));
+      }
+    else
+      {
+      std::vector<std::string> stringArgs;
+      cmSystemTools::ExpandListArgument(value, stringArgs);
+      for(size_t j = 0; j < stringArgs.size(); ++j)
+        {
+        outArgs.push_back(cmExpandedCommandArgument(stringArgs[j], false));
+        }
       }
     }
   return !cmSystemTools::GetFatalErrorOccured();
@@ -3574,7 +3616,7 @@ int cmMakefile::TryCompile(const std::string& srcdir,
                            const std::string& targetName,
                            bool fast,
                            const std::vector<std::string> *cmakeArgs,
-                           std::string *output)
+                           std::string& output)
 {
   this->Internal->IsSourceFileTryCompile = fast;
   // does the binary directory exist ? If not create it...
@@ -3612,6 +3654,7 @@ int cmMakefile::TryCompile(const std::string& srcdir,
   cm.SetHomeOutputDirectory(bindir);
   cm.SetStartDirectory(srcdir);
   cm.SetStartOutputDirectory(bindir);
+  cm.SetGeneratorPlatform(this->GetCMakeInstance()->GetGeneratorPlatform());
   cm.SetGeneratorToolset(this->GetCMakeInstance()->GetGeneratorToolset());
   cm.LoadCache();
   if(!gg->IsMultiConfig())
@@ -4530,7 +4573,7 @@ void cmMakefile::RaiseScope(const std::string& var, const char *varDef)
   if(cmDefinitions* up = cur.GetParent())
     {
     // First localize the definition in the current scope.
-    cur.Pull(var);
+    cur.Get(var);
 
     // Now update the definition in the parent scope.
     up->Set(var, varDef);
@@ -5035,12 +5078,14 @@ void cmMakefile::PopPolicyBarrier(bool reportError)
   this->PolicyBarriers.pop_back();
 }
 
+//----------------------------------------------------------------------------
 bool cmMakefile::SetPolicyVersion(const char *version)
 {
   return this->GetCMakeInstance()->GetPolicies()->
     ApplyPolicyVersion(this,version);
 }
 
+//----------------------------------------------------------------------------
 cmPolicies *cmMakefile::GetPolicies() const
 {
   if (!this->GetCMakeInstance())
@@ -5048,6 +5093,23 @@ cmPolicies *cmMakefile::GetPolicies() const
     return 0;
   }
   return this->GetCMakeInstance()->GetPolicies();
+}
+
+//----------------------------------------------------------------------------
+bool cmMakefile::HasCMP0054AlreadyBeenReported(
+  cmListFileContext context) const
+{
+  cmCMP0054Id id(context);
+
+  bool alreadyReported =
+    this->CMP0054ReportedIds.find(id) != this->CMP0054ReportedIds.end();
+
+  if(!alreadyReported)
+    {
+    this->CMP0054ReportedIds.insert(id);
+    }
+
+  return alreadyReported;
 }
 
 //----------------------------------------------------------------------------

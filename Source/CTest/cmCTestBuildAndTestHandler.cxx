@@ -68,6 +68,12 @@ int cmCTestBuildAndTestHandler::RunCMake(std::string* outstring,
     generator += this->BuildGenerator;
     args.push_back(generator);
     }
+  if(!this->BuildGeneratorPlatform.empty())
+    {
+    std::string platform = "-A";
+    platform += this->BuildGeneratorPlatform;
+    args.push_back(platform);
+    }
   if(this->BuildGeneratorToolset.size())
     {
     std::string toolset = "-T";
@@ -246,6 +252,7 @@ int cmCTestBuildAndTestHandler::RunCMakeAndTest(std::string* outstring)
     // Make the generator available for the Build call below.
     cm.SetGlobalGenerator(cm.CreateGlobalGenerator(
                             this->BuildGenerator));
+    cm.SetGeneratorPlatform(this->BuildGeneratorPlatform);
     cm.SetGeneratorToolset(this->BuildGeneratorToolset);
 
     // Load the cache to make CMAKE_MAKE_PROGRAM available.
@@ -301,7 +308,7 @@ int cmCTestBuildAndTestHandler::RunCMakeAndTest(std::string* outstring)
     int retVal = cm.GetGlobalGenerator()->Build(
       this->SourceDir, this->BinaryDir,
       this->BuildProject, *tarIt,
-      &output, this->BuildMakeProgram,
+      output, this->BuildMakeProgram,
       config,
       !this->BuildNoClean,
       false, remainingTime);
@@ -489,6 +496,12 @@ int cmCTestBuildAndTestHandler::ProcessCommandLineArguments(
     {
     idx++;
     this->BuildGenerator = allArgs[idx];
+    }
+  if(currentArg == "--build-generator-platform" &&
+     idx < allArgs.size() - 1)
+    {
+    idx++;
+    this->BuildGeneratorPlatform = allArgs[idx];
     }
   if(currentArg == "--build-generator-toolset" &&
      idx < allArgs.size() - 1)

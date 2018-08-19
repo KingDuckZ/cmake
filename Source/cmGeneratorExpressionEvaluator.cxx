@@ -394,9 +394,8 @@ struct CompilerIdNode : public cmGeneratorExpressionNode
                        cmGeneratorExpressionDAGChecker *,
                        const std::string &lang) const
   {
-    const char *compilerId = context->Makefile ?
-                              context->Makefile->GetSafeDefinition(
-                                      "CMAKE_" + lang + "_COMPILER_ID") : "";
+    const char *compilerId =
+      context->Makefile->GetSafeDefinition("CMAKE_" + lang + "_COMPILER_ID");
     if (parameters.size() == 0)
       {
       return compilerId ? compilerId : "";
@@ -500,9 +499,8 @@ struct CompilerVersionNode : public cmGeneratorExpressionNode
                        cmGeneratorExpressionDAGChecker *,
                        const std::string &lang) const
   {
-    const char *compilerVersion = context->Makefile ?
-                              context->Makefile->GetSafeDefinition(
-                                  "CMAKE_" + lang + "_COMPILER_VERSION") : "";
+    const char *compilerVersion = context->Makefile->GetSafeDefinition(
+        "CMAKE_" + lang + "_COMPILER_VERSION");
     if (parameters.size() == 0)
       {
       return compilerVersion ? compilerVersion : "";
@@ -583,9 +581,8 @@ struct PlatformIdNode : public cmGeneratorExpressionNode
                        const GeneratorExpressionContent *,
                        cmGeneratorExpressionDAGChecker *) const
   {
-    const char *platformId = context->Makefile ?
-                              context->Makefile->GetSafeDefinition(
-                        "CMAKE_SYSTEM_NAME") : "";
+    const char *platformId =
+      context->Makefile->GetSafeDefinition("CMAKE_SYSTEM_NAME");
     if (parameters.size() == 0)
       {
       return platformId ? platformId : "";
@@ -840,6 +837,10 @@ getLinkedTargetsContent(
       {
       context->HadContextSensitiveCondition = true;
       }
+    if (cge->GetHadHeadSensitiveCondition())
+      {
+      context->HadHeadSensitiveCondition = true;
+      }
     }
   linkedTargetsContent =
     cmGeneratorExpression::StripEmptyListElements(linkedTargetsContent);
@@ -871,6 +872,10 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
     cmTarget const* target = context->HeadTarget;
     std::string propertyName = *parameters.begin();
 
+    if (parameters.size() == 1)
+      {
+      context->HadHeadSensitiveCondition = true;
+      }
     if (!target && parameters.size() == 1)
       {
       reportError(context, content->GetOriginalExpression(),
@@ -1073,7 +1078,7 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
         }
       }
 #undef POPULATE_INTERFACE_PROPERTY_NAME
-    cmTarget const* headTarget = context->HeadTarget
+    cmTarget const* headTarget = context->HeadTarget && isInterfaceProperty
                                ? context->HeadTarget : target;
 
     if(isInterfaceProperty)
@@ -1095,7 +1100,7 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
         {
         linkedTargetsContent =
           getLinkedTargetsContent(impl->Libraries, target,
-                                  headTarget,
+                                  target,
                                   context, &dagChecker,
                                   interfacePropertyName);
         }
@@ -1189,6 +1194,10 @@ static const struct TargetPropertyNode : public cmGeneratorExpressionNode
       if (cge->GetHadContextSensitiveCondition())
         {
         context->HadContextSensitiveCondition = true;
+        }
+      if (cge->GetHadHeadSensitiveCondition())
+        {
+        context->HadHeadSensitiveCondition = true;
         }
       if (!linkedTargetsContent.empty())
         {
@@ -1313,6 +1322,7 @@ static const struct CompileFeaturesNode : public cmGeneratorExpressionNode
           "not be used with add_custom_command or add_custom_target.");
       return std::string();
       }
+    context->HadHeadSensitiveCondition = true;
 
     typedef std::map<std::string, std::vector<std::string> > LangMap;
     static LangMap availableFeatures;
@@ -1446,6 +1456,7 @@ static const struct TargetPolicyNode : public cmGeneratorExpressionNode
       }
 
     context->HadContextSensitiveCondition = true;
+    context->HadHeadSensitiveCondition = true;
 
     for (size_t i = 1; i < cmArraySize(targetPolicyWhitelist); ++i)
       {
@@ -1509,7 +1520,17 @@ static const struct InstallPrefixNode : public cmGeneratorExpressionNode
 } installPrefixNode;
 
 //----------------------------------------------------------------------------
-template<bool linker, bool soname>
+class ArtifactNameTag;
+class ArtifactLinkerTag;
+class ArtifactSonameTag;
+class ArtifactPdbTag;
+
+class ArtifactPathTag;
+class ArtifactDirTag;
+class ArtifactNameTag;
+
+//----------------------------------------------------------------------------
+template<typename ArtifactT>
 struct TargetFilesystemArtifactResultCreator
 {
   static std::string Create(cmTarget* target,
@@ -1519,7 +1540,7 @@ struct TargetFilesystemArtifactResultCreator
 
 //----------------------------------------------------------------------------
 template<>
-struct TargetFilesystemArtifactResultCreator<false, true>
+struct TargetFilesystemArtifactResultCreator<ArtifactSonameTag>
 {
   static std::string Create(cmTarget* target,
                             cmGeneratorExpressionContext *context,
@@ -1549,7 +1570,45 @@ struct TargetFilesystemArtifactResultCreator<false, true>
 
 //----------------------------------------------------------------------------
 template<>
-struct TargetFilesystemArtifactResultCreator<true, false>
+struct TargetFilesystemArtifactResultCreator<ArtifactPdbTag>
+{
+  static std::string Create(cmTarget* target,
+                            cmGeneratorExpressionContext *context,
+                            const GeneratorExpressionContent *content)
+  {
+    std::string language = target->GetLinkerLanguage(context->Config);
+
+    std::string pdbSupportVar = "CMAKE_" + language + "_LINKER_SUPPORTS_PDB";
+
+    if(!context->Makefile->IsOn(pdbSupportVar))
+      {
+      ::reportError(context, content->GetOriginalExpression(),
+                    "TARGET_PDB_FILE is not supported by the target linker.");
+      return std::string();
+      }
+
+    cmTarget::TargetType targetType = target->GetType();
+
+    if(targetType != cmTarget::SHARED_LIBRARY &&
+       targetType != cmTarget::MODULE_LIBRARY &&
+       targetType != cmTarget::EXECUTABLE)
+      {
+      ::reportError(context, content->GetOriginalExpression(),
+                    "TARGET_PDB_FILE is allowed only for "
+                    "targets with linker created artifacts.");
+      return std::string();
+      }
+
+    std::string result = target->GetPDBDirectory(context->Config);
+    result += "/";
+    result += target->GetPDBName(context->Config);
+    return result;
+  }
+};
+
+//----------------------------------------------------------------------------
+template<>
+struct TargetFilesystemArtifactResultCreator<ArtifactLinkerTag>
 {
   static std::string Create(cmTarget* target,
                             cmGeneratorExpressionContext *context,
@@ -1570,7 +1629,7 @@ struct TargetFilesystemArtifactResultCreator<true, false>
 
 //----------------------------------------------------------------------------
 template<>
-struct TargetFilesystemArtifactResultCreator<false, false>
+struct TargetFilesystemArtifactResultCreator<ArtifactNameTag>
 {
   static std::string Create(cmTarget* target,
                             cmGeneratorExpressionContext *context,
@@ -1582,7 +1641,7 @@ struct TargetFilesystemArtifactResultCreator<false, false>
 
 
 //----------------------------------------------------------------------------
-template<bool dirQual, bool nameQual>
+template<typename ArtifactT>
 struct TargetFilesystemArtifactResultGetter
 {
   static std::string Get(const std::string &result);
@@ -1590,7 +1649,7 @@ struct TargetFilesystemArtifactResultGetter
 
 //----------------------------------------------------------------------------
 template<>
-struct TargetFilesystemArtifactResultGetter<false, true>
+struct TargetFilesystemArtifactResultGetter<ArtifactNameTag>
 {
   static std::string Get(const std::string &result)
   { return cmSystemTools::GetFilenameName(result); }
@@ -1598,7 +1657,7 @@ struct TargetFilesystemArtifactResultGetter<false, true>
 
 //----------------------------------------------------------------------------
 template<>
-struct TargetFilesystemArtifactResultGetter<true, false>
+struct TargetFilesystemArtifactResultGetter<ArtifactDirTag>
 {
   static std::string Get(const std::string &result)
   { return cmSystemTools::GetFilenamePath(result); }
@@ -1606,14 +1665,14 @@ struct TargetFilesystemArtifactResultGetter<true, false>
 
 //----------------------------------------------------------------------------
 template<>
-struct TargetFilesystemArtifactResultGetter<false, false>
+struct TargetFilesystemArtifactResultGetter<ArtifactPathTag>
 {
   static std::string Get(const std::string &result)
   { return result; }
 };
 
 //----------------------------------------------------------------------------
-template<bool linker, bool soname, bool dirQual, bool nameQual>
+template<typename ArtifactT, typename ComponentT>
 struct TargetFilesystemArtifact : public cmGeneratorExpressionNode
 {
   TargetFilesystemArtifact() {}
@@ -1661,7 +1720,7 @@ struct TargetFilesystemArtifact : public cmGeneratorExpressionNode
     context->AllTargets.insert(target);
 
     std::string result =
-                TargetFilesystemArtifactResultCreator<linker, soname>::Create(
+                TargetFilesystemArtifactResultCreator<ArtifactT>::Create(
                           target,
                           context,
                           content);
@@ -1670,29 +1729,35 @@ struct TargetFilesystemArtifact : public cmGeneratorExpressionNode
       return std::string();
       }
     return
-        TargetFilesystemArtifactResultGetter<dirQual, nameQual>::Get(result);
+        TargetFilesystemArtifactResultGetter<ComponentT>::Get(result);
   }
 };
 
 //----------------------------------------------------------------------------
+template<typename ArtifactT>
+struct TargetFilesystemArtifactNodeGroup
+{
+  TargetFilesystemArtifactNodeGroup()
+    {
+    }
+
+  TargetFilesystemArtifact<ArtifactT, ArtifactPathTag> File;
+  TargetFilesystemArtifact<ArtifactT, ArtifactNameTag> FileName;
+  TargetFilesystemArtifact<ArtifactT, ArtifactDirTag> FileDir;
+};
+
+//----------------------------------------------------------------------------
 static const
-TargetFilesystemArtifact<false, false, false, false> targetFileNode;
+TargetFilesystemArtifactNodeGroup<ArtifactNameTag> targetNodeGroup;
+
 static const
-TargetFilesystemArtifact<true, false, false, false> targetLinkerFileNode;
+TargetFilesystemArtifactNodeGroup<ArtifactLinkerTag> targetLinkerNodeGroup;
+
 static const
-TargetFilesystemArtifact<false, true, false, false> targetSoNameFileNode;
+TargetFilesystemArtifactNodeGroup<ArtifactSonameTag> targetSoNameNodeGroup;
+
 static const
-TargetFilesystemArtifact<false, false, false, true> targetFileNameNode;
-static const
-TargetFilesystemArtifact<true, false, false, true> targetLinkerFileNameNode;
-static const
-TargetFilesystemArtifact<false, true, false, true> targetSoNameFileNameNode;
-static const
-TargetFilesystemArtifact<false, false, true, false> targetFileDirNode;
-static const
-TargetFilesystemArtifact<true, false, true, false> targetLinkerFileDirNode;
-static const
-TargetFilesystemArtifact<false, true, true, false> targetSoNameFileDirNode;
+TargetFilesystemArtifactNodeGroup<ArtifactPdbTag> targetPdbNodeGroup;
 
 //----------------------------------------------------------------------------
 static const
@@ -1718,15 +1783,18 @@ cmGeneratorExpressionNode* GetNode(const std::string &identifier)
     nodeMap["COMPILE_FEATURES"] = &compileFeaturesNode;
     nodeMap["CONFIGURATION"] = &configurationNode;
     nodeMap["CONFIG"] = &configurationTestNode;
-    nodeMap["TARGET_FILE"] = &targetFileNode;
-    nodeMap["TARGET_LINKER_FILE"] = &targetLinkerFileNode;
-    nodeMap["TARGET_SONAME_FILE"] = &targetSoNameFileNode;
-    nodeMap["TARGET_FILE_NAME"] = &targetFileNameNode;
-    nodeMap["TARGET_LINKER_FILE_NAME"] = &targetLinkerFileNameNode;
-    nodeMap["TARGET_SONAME_FILE_NAME"] = &targetSoNameFileNameNode;
-    nodeMap["TARGET_FILE_DIR"] = &targetFileDirNode;
-    nodeMap["TARGET_LINKER_FILE_DIR"] = &targetLinkerFileDirNode;
-    nodeMap["TARGET_SONAME_FILE_DIR"] = &targetSoNameFileDirNode;
+    nodeMap["TARGET_FILE"] = &targetNodeGroup.File;
+    nodeMap["TARGET_LINKER_FILE"] = &targetLinkerNodeGroup.File;
+    nodeMap["TARGET_SONAME_FILE"] = &targetSoNameNodeGroup.File;
+    nodeMap["TARGET_PDB_FILE"] = &targetPdbNodeGroup.File;
+    nodeMap["TARGET_FILE_NAME"] = &targetNodeGroup.FileName;
+    nodeMap["TARGET_LINKER_FILE_NAME"] = &targetLinkerNodeGroup.FileName;
+    nodeMap["TARGET_SONAME_FILE_NAME"] = &targetSoNameNodeGroup.FileName;
+    nodeMap["TARGET_PDB_FILE_NAME"] = &targetPdbNodeGroup.FileName;
+    nodeMap["TARGET_FILE_DIR"] = &targetNodeGroup.FileDir;
+    nodeMap["TARGET_LINKER_FILE_DIR"] = &targetLinkerNodeGroup.FileDir;
+    nodeMap["TARGET_SONAME_FILE_DIR"] = &targetSoNameNodeGroup.FileDir;
+    nodeMap["TARGET_PDB_FILE_DIR"] = &targetPdbNodeGroup.FileDir;
     nodeMap["STREQUAL"] = &strEqualNode;
     nodeMap["EQUAL"] = &equalNode;
     nodeMap["LOWER_CASE"] = &lowerCaseNode;

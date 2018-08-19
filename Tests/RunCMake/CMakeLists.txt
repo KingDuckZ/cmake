@@ -4,6 +4,7 @@ macro(add_RunCMake_test test)
   add_test(RunCMake.${test} ${CMAKE_CMAKE_COMMAND}
     -DCMAKE_MODULE_PATH=${CMAKE_CURRENT_SOURCE_DIR}
     -DRunCMake_GENERATOR=${CMAKE_GENERATOR}
+    -DRunCMake_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}
     -DRunCMake_GENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}
     -DRunCMake_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/${test}
     -DRunCMake_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}/${test}
@@ -19,6 +20,12 @@ endif()
 if(XCODE_VERSION AND "${XCODE_VERSION}" VERSION_LESS 2)
   set(TargetSources_ARGS -DXCODE_BELOW_2=1)
   set(File_Generate_ARGS -DXCODE_BELOW_2=1)
+endif()
+
+# Test MSVC for older host CMake versions, and test
+# WIN32/CMAKE_C_COMPILER_ID to fix check on Intel for Windows.
+if(MSVC OR (WIN32 AND CMAKE_C_COMPILER_ID MATCHES "MSVC|Intel"))
+  set(GeneratorExpression_ARGS -DLINKER_SUPPORTS_PDB=1)
 endif()
 
 add_RunCMake_test(CMP0019)
@@ -41,8 +48,9 @@ add_RunCMake_test(CMP0049)
 add_RunCMake_test(CMP0050)
 add_RunCMake_test(CMP0051)
 add_RunCMake_test(CMP0053)
+add_RunCMake_test(CMP0054)
 add_RunCMake_test(CTest)
-if(UNIX AND "${CMAKE_GENERATOR}" MATCHES "Unix Makefiles")
+if(UNIX AND "${CMAKE_GENERATOR}" MATCHES "Unix Makefiles|Ninja")
   add_RunCMake_test(CompilerChange)
 endif()
 add_RunCMake_test(CompilerNotFound)
@@ -52,6 +60,7 @@ add_RunCMake_test(ExternalData)
 add_RunCMake_test(FeatureSummary)
 add_RunCMake_test(FPHSA)
 add_RunCMake_test(GeneratorExpression)
+add_RunCMake_test(GeneratorPlatform)
 add_RunCMake_test(GeneratorToolset)
 add_RunCMake_test(TargetPropertyGeneratorExpressions)
 add_RunCMake_test(Languages)

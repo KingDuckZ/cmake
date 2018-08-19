@@ -23,6 +23,7 @@ All Modules
    /module/CheckCXXSourceRuns
    /module/CheckCXXSymbolExists
    /module/CheckFortranFunctionExists
+   /module/CheckFortranSourceCompiles
    /module/CheckFunctionExists
    /module/CheckIncludeFileCXX
    /module/CheckIncludeFile
@@ -55,6 +56,7 @@ All Modules
    /module/CPackCygwin
    /module/CPackDeb
    /module/CPackDMG
+   /module/CPackIFW
    /module/CPackNSIS
    /module/CPackPackageMaker
    /module/CPackRPM
@@ -113,6 +115,7 @@ All Modules
    /module/FindHg
    /module/FindHSPELL
    /module/FindHTMLHelp
+   /module/FindIce
    /module/FindIcotool
    /module/FindImageMagick
    /module/FindITK
@@ -205,6 +208,7 @@ All Modules
    /module/FindWish
    /module/FindwxWidgets
    /module/FindwxWindows
+   /module/FindXerces
    /module/FindX11
    /module/FindXMLRPC
    /module/FindZLIB

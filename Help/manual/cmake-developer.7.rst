@@ -188,8 +188,8 @@ size_t
 
 Various implementations have differing implementation of ``size_t``.  When
 assigning the result of ``.size()`` on a container for example, the result
-should not be assigned to an ``unsigned int`` or similar. ``std::size_t`` must
-not be used.
+should be assigned to ``size_t`` not to ``std::size_t``, ``unsigned int`` or
+similar types.
 
 Templates
 ---------
@@ -1005,7 +1005,8 @@ projects that do not require a high enough CMake version.
 .. code-block:: cmake
 
   if(CMAKE_MINIMUM_REQUIRED_VERSION VERSION_LESS 3.0.0)
-    message(AUTHOR_WARNING "Your project should require at least CMake 3.0.0 to use FindFoo.cmake")
+    message(AUTHOR_WARNING
+      "Your project should require at least CMake 3.0.0 to use FindFoo.cmake")
   endif()
 
 Now the actual libraries and so on have to be found.  The code here will

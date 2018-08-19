@@ -310,6 +310,7 @@ set(SRCS
   cmTest.h
   cmTestGenerator.cxx
   cmTestGenerator.h
+  cmUuid.cxx
   cmVariableWatch.cxx
   cmVariableWatch.h
   cmVersion.cxx
@@ -452,7 +453,7 @@ if (WIN32)
 endif ()
 
 # Watcom support
-if(WIN32 OR "${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
+if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
   set_property(SOURCE cmake.cxx APPEND PROPERTY COMPILE_DEFINITIONS CMAKE_USE_WMAKE)
   list(APPEND SRCS
     cmGlobalWatcomWMakeGenerator.cxx
@@ -607,11 +608,16 @@ set(CPACK_SRCS
   CPack/cmCPackGenerator.cxx
   CPack/cmCPackLog.cxx
   CPack/cmCPackNSISGenerator.cxx
+  CPack/IFW/cmCPackIFWPackage.cxx
+  CPack/IFW/cmCPackIFWInstaller.cxx
+  CPack/IFW/cmCPackIFWGenerator.cxx
   CPack/cmCPackSTGZGenerator.cxx
   CPack/cmCPackTGZGenerator.cxx
+  CPack/cmCPackTXZGenerator.cxx
   CPack/cmCPackTarBZip2Generator.cxx
   CPack/cmCPackTarCompressGenerator.cxx
   CPack/cmCPackZIPGenerator.cxx
+  CPack/cmCPack7zGenerator.cxx
   )
 
 if(CYGWIN)
@@ -631,13 +637,14 @@ endif()
 if(WIN32)
   set(CPACK_SRCS ${CPACK_SRCS}
     CPack/WiX/cmCPackWIXGenerator.cxx
-    CPack/WiX/cmWIXSourceWriter.cxx
+    CPack/WiX/cmWIXAccessControlList.cxx
     CPack/WiX/cmWIXDirectoriesSourceWriter.cxx
     CPack/WiX/cmWIXFeaturesSourceWriter.cxx
     CPack/WiX/cmWIXFilesSourceWriter.cxx
-    CPack/WiX/cmWIXRichTextFormatWriter.cxx
     CPack/WiX/cmWIXPatch.cxx
     CPack/WiX/cmWIXPatchParser.cxx
+    CPack/WiX/cmWIXRichTextFormatWriter.cxx
+    CPack/WiX/cmWIXSourceWriter.cxx
   )
 endif()
 

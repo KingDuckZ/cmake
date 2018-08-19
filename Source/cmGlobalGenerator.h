@@ -39,7 +39,7 @@ class cmExportBuildFileGenerator;
 class cmQtAutoGenerators;
 
 /** \class cmGlobalGenerator
- * \brief Responable for overseeing the generation process for the entire tree
+ * \brief Responsible for overseeing the generation process for the entire tree
  *
  * Subclasses of this class generate makefiles for various
  * platforms.
@@ -65,6 +65,10 @@ public:
   virtual bool SetSystemName(std::string const&, cmMakefile*)
     { return true; }
 
+  /** Set the generator-specific platform name.  Returns true if platform
+      is supported and false otherwise.  */
+  virtual bool SetGeneratorPlatform(std::string const& p, cmMakefile* mf);
+
   /** Set the generator-specific toolset name.  Returns true if toolset
       is supported and false otherwise.  */
   virtual bool SetGeneratorToolset(std::string const& ts, cmMakefile* mf);
@@ -80,7 +84,7 @@ public:
    * basically creates a series of LocalGenerators for each directory and
    * requests that they Generate.
    */
-  virtual void Generate();
+  void DoGenerate();
 
   /**
    * Set/Get and Clear the enabled languages.
@@ -90,7 +94,7 @@ public:
   void ClearEnabledLanguages();
   void GetEnabledLanguages(std::vector<std::string>& lang) const;
   /**
-   * Try to determine system infomation such as shared library
+   * Try to determine system information such as shared library
    * extension, pthreads, byte order etc.
    */
   virtual void EnableLanguage(std::vector<std::string>const& languages,
@@ -104,7 +108,7 @@ public:
                                bool optional) const;
 
   /**
-   * Try to determine system infomation, get it from another generator
+   * Try to determine system information, get it from another generator
    */
   virtual void EnableLanguagesFromGenerator(cmGlobalGenerator *gen,
                                             cmMakefile* mf);
@@ -116,7 +120,7 @@ public:
   virtual int TryCompile(const std::string& srcdir, const std::string& bindir,
                          const std::string& projectName,
                          const std::string& targetName,
-                         bool fast, std::string *output, cmMakefile* mf);
+                         bool fast, std::string& output, cmMakefile* mf);
 
 
   /**
@@ -127,7 +131,7 @@ public:
    */
   int Build(const std::string& srcdir, const std::string& bindir,
             const std::string& projectName, const std::string& targetName,
-            std::string *output,
+            std::string& output,
             const std::string& makeProgram, const std::string& config,
             bool clean, bool fast,
             double timeout,
@@ -194,7 +198,7 @@ public:
   std::string GetLanguageFromExtension(const char* ext) const;
   ///! is an extension to be ignored
   bool IgnoreFile(const char* ext) const;
-  ///! What is the preference for linkers and this language (None or Prefered)
+  ///! What is the preference for linkers and this language (None or Preferred)
   int GetLinkerPreference(const std::string& lang) const;
   ///! What is the object file extension for a given source file?
   std::string GetLanguageOutputExtension(cmSourceFile const&) const;
@@ -338,6 +342,8 @@ public:
   bool GenerateCPackPropertiesFile();
 
 protected:
+  virtual void Generate();
+
   typedef std::vector<cmLocalGenerator*> GeneratorVector;
   // for a project collect all its targets by following depend
   // information, and also collect all the targets

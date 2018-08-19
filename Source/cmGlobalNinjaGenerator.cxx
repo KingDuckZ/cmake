@@ -205,7 +205,7 @@ void cmGlobalNinjaGenerator::WriteBuild(std::ostream& os,
       && args.size() + buildstr.size() + assignments.size()
                                                     > (size_t) cmdLineLimit) {
     buildstr += "_RSP_FILE";
-    variable_assignments.clear();
+    variable_assignments.str(std::string());
     cmGlobalNinjaGenerator::WriteVariable(variable_assignments,
                                           "RSP_FILE", rspfile, "", 1);
     assignments += variable_assignments.str();
@@ -540,6 +540,15 @@ void cmGlobalNinjaGenerator
     cmSystemTools::Error("The Ninja generator does not support Fortran yet.");
     }
   this->cmGlobalGenerator::EnableLanguage(langs, makefile, optional);
+  for(std::vector<std::string>::const_iterator l = langs.begin();
+      l != langs.end(); ++l)
+    {
+    if(*l == "NONE")
+      {
+      continue;
+      }
+    this->ResolveLanguageCompiler(*l, makefile, optional);
+    }
 }
 
 bool cmGlobalNinjaGenerator::UsingMinGW = false;
@@ -1033,17 +1042,27 @@ void cmGlobalNinjaGenerator::WriteUnknownExplicitDependencies(std::ostream& os)
                       std::back_inserter(unkownExplicitDepends));
 
 
+  std::string const rootBuildDirectory =
+      this->GetCMakeInstance()->GetHomeOutputDirectory();
   for (std::vector<std::string>::const_iterator
        i = unkownExplicitDepends.begin();
        i != unkownExplicitDepends.end();
        ++i)
     {
-    cmNinjaDeps deps(1,*i);
-    this->WritePhonyBuild(os,
-                          "",
-                          deps,
-                          deps);
-    }
+    //verify the file is in the build directory
+    std::string const absDepPath = cmSystemTools::CollapseFullPath(
+                                     i->c_str(), rootBuildDirectory.c_str());
+    bool const inBuildDir = cmSystemTools::IsSubDirectory(absDepPath.c_str(),
+                                                  rootBuildDirectory.c_str());
+    if(inBuildDir)
+      {
+      cmNinjaDeps deps(1,*i);
+      this->WritePhonyBuild(os,
+                            "",
+                            deps,
+                            deps);
+      }
+   }
 }
 
 void cmGlobalNinjaGenerator::WriteBuiltinTargets(std::ostream& os)
@@ -1119,6 +1138,16 @@ void cmGlobalNinjaGenerator::WriteTargetRebuildManifest(std::ostream& os)
   implicitDeps.erase(std::unique(implicitDeps.begin(), implicitDeps.end()),
                      implicitDeps.end());
 
+  cmNinjaVars variables;
+  // Use 'console' pool to get non buffered output of the CMake re-run call
+  // Available since Ninja 1.5
+  if(cmSystemTools::VersionCompare(cmSystemTools::OP_LESS,
+                                   ninjaVersion().c_str(),
+                                   "1.5") == false)
+    {
+    variables["pool"] = "console";
+    }
+
   this->WriteBuild(os,
                    "Re-run CMake if any of its inputs changed.",
                    "RERUN_CMAKE",
@@ -1126,7 +1155,7 @@ void cmGlobalNinjaGenerator::WriteTargetRebuildManifest(std::ostream& os)
                    /*explicitDeps=*/ cmNinjaDeps(),
                    implicitDeps,
                    /*orderOnlyDeps=*/ cmNinjaDeps(),
-                   /*variables=*/ cmNinjaVars());
+                   variables);
 
   this->WritePhonyBuild(os,
                         "A missing CMake input file is not an error.",
@@ -1143,6 +1172,17 @@ std::string cmGlobalNinjaGenerator::ninjaCmd() const
                                     cmLocalGenerator::SHELL);
   }
   return "ninja";
+}
+
+std::string cmGlobalNinjaGenerator::ninjaVersion() const
+{
+  std::string version;
+  std::string command = ninjaCmd() + " --version";
+  cmSystemTools::RunSingleCommand(command.c_str(),
+                                  &version, 0, 0,
+                                  cmSystemTools::OUTPUT_NONE);
+
+  return version;
 }
 
 void cmGlobalNinjaGenerator::WriteTargetClean(std::ostream& os)

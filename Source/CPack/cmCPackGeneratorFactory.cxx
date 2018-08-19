@@ -14,11 +14,14 @@
 
 #include "cmCPackGenerator.h"
 #include "cmCPackTGZGenerator.h"
+#include "cmCPackTXZGenerator.h"
 #include "cmCPackTarBZip2Generator.h"
 #include "cmCPackTarCompressGenerator.h"
 #include "cmCPackZIPGenerator.h"
+#include "cmCPack7zGenerator.h"
 #include "cmCPackSTGZGenerator.h"
 #include "cmCPackNSISGenerator.h"
+#include "IFW/cmCPackIFWGenerator.h"
 
 #ifdef __APPLE__
 #  include "cmCPackDragNDropGenerator.h"
@@ -56,6 +59,11 @@ cmCPackGeneratorFactory::cmCPackGeneratorFactory()
     this->RegisterGenerator("TGZ", "Tar GZip compression",
       cmCPackTGZGenerator::CreateGenerator);
     }
+  if (cmCPackTXZGenerator::CanGenerate())
+    {
+    this->RegisterGenerator("TXZ", "Tar XZ compression",
+      cmCPackTXZGenerator::CreateGenerator);
+    }
   if (cmCPackSTGZGenerator::CanGenerate())
     {
     this->RegisterGenerator("STGZ", "Self extracting Tar GZip compression",
@@ -67,6 +75,11 @@ cmCPackGeneratorFactory::cmCPackGeneratorFactory()
       cmCPackNSISGenerator::CreateGenerator);
     this->RegisterGenerator("NSIS64", "Null Soft Installer (64-bit)",
       cmCPackNSISGenerator::CreateGenerator64);
+    }
+  if (cmCPackIFWGenerator::CanGenerate())
+    {
+    this->RegisterGenerator("IFW", "Qt Installer Framework",
+      cmCPackIFWGenerator::CreateGenerator);
     }
 #ifdef __CYGWIN__
   if (cmCPackCygwinBinaryGenerator::CanGenerate())
@@ -85,6 +98,11 @@ cmCPackGeneratorFactory::cmCPackGeneratorFactory()
     {
     this->RegisterGenerator("ZIP", "ZIP file format",
       cmCPackZIPGenerator::CreateGenerator);
+    }
+  if (cmCPack7zGenerator::CanGenerate())
+    {
+    this->RegisterGenerator("7Z", "7-Zip file format",
+      cmCPack7zGenerator::CreateGenerator);
     }
 #ifdef _WIN32
   if (cmCPackWIXGenerator::CanGenerate())
