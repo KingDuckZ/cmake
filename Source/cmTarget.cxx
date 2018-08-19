@@ -2279,7 +2279,8 @@ cmTarget::GetTextIncludeDirectories(const std::string& config) const
                             uniqueIncludes,
                             &dagChecker,
                             config,
-                            debugIncludes);
+                            debugIncludes,
+                            "D");
   return includes;
 }
 

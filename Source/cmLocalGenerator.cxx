@@ -1378,7 +1378,7 @@ std::string cmLocalGenerator::GetTextIncludeFlags(
     }
 
   OutputFormat shellFormat = forResponseFile? RESPONSE : SHELL;
-  cmOStringStream includeFlags;
+  std::ostringstream includeFlags;
 
   std::string flagVar = "CMAKE_TEXT_INCLUDE_FLAG_";
   flagVar += lang;
@@ -1691,18 +1691,18 @@ void cmLocalGenerator::GetTextIncludeDirectories(
   if(includeBinaryDir)
     {
     if(emitted.find(
-                this->Makefile->GetStartOutputDirectory()) == emitted.end())
+                this->Makefile->GetHomeDirectory()) == emitted.end())
       {
-      dirs.push_back(this->Makefile->GetStartOutputDirectory());
-      emitted.insert(this->Makefile->GetStartOutputDirectory());
+      dirs.push_back(this->Makefile->GetHomeDirectory());
+      emitted.insert(this->Makefile->GetHomeDirectory());
       }
     }
   if(includeSourceDir)
     {
-    if(emitted.find(this->Makefile->GetStartDirectory()) == emitted.end())
+    if(emitted.find(this->Makefile->GetHomeDirectory()) == emitted.end())
       {
-      dirs.push_back(this->Makefile->GetStartDirectory());
-      emitted.insert(this->Makefile->GetStartDirectory());
+      dirs.push_back(this->Makefile->GetHomeDirectory());
+      emitted.insert(this->Makefile->GetHomeDirectory());
       }
     }
 

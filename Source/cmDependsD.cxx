@@ -63,7 +63,7 @@ bool cmDependsD::WriteDependencies(const std::set<std::string>& sources,
       cmSystemTools::ReplaceString(cmd_str, "<SOURCE>", src->c_str());
       cmSystemTools::ExpandListArgument(cmd_str, cmd);
 
-      if(!cmSystemTools::RunSingleCommand(cmd, 0, 0, 0,
+      if(!cmSystemTools::RunSingleCommand(cmd, 0, 0, 0, 0,
                                 cmSystemTools::OUTPUT_NORMAL))
         {
         // Restablish stdout, cerr

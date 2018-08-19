@@ -183,7 +183,6 @@ cmMakefile::cmMakefile(cmLocalGenerator* localGenerator)
 
   this->AddDefaultDefinitions();
 
-  this->SystemTextIncludeDirectories = mf.SystemTextIncludeDirectories;
   this->cmDefineRegex.compile("#cmakedefine[ \t]+([A-Za-z_0-9]*)");
   this->cmDefine01Regex.compile("#cmakedefine01[ \t]+([A-Za-z_0-9]*)");
   this->cmAtVarRegex.compile("(@[A-Za-z_0-9/.+-]+@)");

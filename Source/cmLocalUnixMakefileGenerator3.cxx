@@ -2069,7 +2069,7 @@ void cmLocalUnixMakefileGenerator3
 
       // Read target's include directories
       std::vector<std::string> includes =
-        target.GetIncludeDirectories(this->ConfigurationName);
+        target.GetIncludeDirectories(this->ConfigurationName, "D");
 
       // Read target's text includes
       std::vector<std::string> text_includes =
@@ -2077,7 +2077,7 @@ void cmLocalUnixMakefileGenerator3
 
       // Read target's compile options
       std::vector<std::string> options;
-      target.GetCompileOptions(options, this->ConfigurationName);
+      target.GetCompileOptions(options, this->ConfigurationName, "D");
 
       // Read target's other compile flags
       std::string flags;
