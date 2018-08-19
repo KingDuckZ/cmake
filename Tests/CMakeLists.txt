@@ -52,7 +52,7 @@ if(BUILD_TESTING)
     set(CMake_TEST_DEVENV "${CMAKE_MAKE_PROGRAM}")
   endif()
 
-  if(CMAKE_GENERATOR MATCHES "Visual Studio")
+  if(CMAKE_GENERATOR MATCHES "Visual Studio|Xcode")
     set(CMake_TEST_EXPLICIT_MAKE_PROGRAM "")
   else()
     set(CMake_TEST_EXPLICIT_MAKE_PROGRAM "${CMAKE_MAKE_PROGRAM}")
@@ -111,10 +111,6 @@ if(BUILD_TESTING)
 
   add_subdirectory(FindPackageModeMakefileTest)
 
-  if(NOT CMake_TEST_EXTERNAL_CMAKE)
-    add_subdirectory(CTestTestMemcheck)
-  endif()
-
   # Collect a list of all test build directories.
   set(TEST_BUILD_DIRS)
 
@@ -172,7 +168,7 @@ if(BUILD_TESTING)
       OUTPUT_VARIABLE OSX_VERSION
       OUTPUT_STRIP_TRAILING_WHITESPACE
       )
-    if(OSX_VERSION MATCHES "^10\\.[0123]" OR OSX_VERSION MATCHES "ProductVersion:\t10\\.[0123]")
+    if(OSX_VERSION VERSION_LESS 10.4)
       message(STATUS "Forcing CTEST_TEST_CPACK=OFF on OSX < 10.4")
       message(STATUS "OSX_VERSION='${OSX_VERSION}'")
       set(CTEST_TEST_CPACK OFF)
@@ -256,6 +252,7 @@ if(BUILD_TESTING)
   endif()
   ADD_TEST_MACRO(COnly COnly)
   ADD_TEST_MACRO(CxxOnly CxxOnly)
+  ADD_TEST_MACRO(CxxSubdirC CxxSubdirC)
   ADD_TEST_MACRO(IPO COnly/COnly)
   ADD_TEST_MACRO(OutDir runtime/OutDir)
   ADD_TEST_MACRO(ObjectLibrary UseCshared)
@@ -292,6 +289,7 @@ if(BUILD_TESTING)
     ADD_TEST_MACRO(ConfigSources ConfigSources)
   endif()
   ADD_TEST_MACRO(SourcesProperty SourcesProperty)
+  ADD_TEST_MACRO(SourceFileProperty SourceFileProperty)
   if(CMAKE_CXX_COMPILER_ID STREQUAL GNU
       AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.7)
     set(runCxxDialectTest 1)
@@ -691,7 +689,8 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
     FAIL_REGULAR_EXPRESSION "Unexpected: ")
   list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/ArgumentExpansion")
 
-  add_test(GeneratorExpression  ${CMAKE_CTEST_COMMAND}
+  add_test(GeneratorExpression
+    ${CMAKE_CTEST_COMMAND} -C \${CTEST_CONFIGURATION_TYPE}
     --build-and-test
     "${CMake_SOURCE_DIR}/Tests/GeneratorExpression"
     "${CMake_BINARY_DIR}/Tests/GeneratorExpression"
@@ -715,6 +714,8 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
     --test-command CustomCommand
     )
   list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/CustomCommand")
+
+  ADD_TEST_MACRO(CustomCommandByproducts CustomCommandByproducts)
 
   ADD_TEST_MACRO(EmptyDepends ${CMAKE_CTEST_COMMAND})
 
@@ -951,7 +952,8 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
       set(CPackRun_CPackGen  "-DCPackGen=${CPackGen}")
       foreach(CPackComponentWay ${CWAYLST})
         set(CPackRun_CPackComponentWay "-DCPackComponentWay=${CPackComponentWay}")
-        add_test(CPackComponentsForAll-${CPackGen}-${CPackComponentWay} ${CMAKE_CTEST_COMMAND}
+        add_test(CPackComponentsForAll-${CPackGen}-${CPackComponentWay}
+          ${CMAKE_CTEST_COMMAND} -C \${CTEST_CONFIGURATION_TYPE}
           --build-and-test
           "${CMake_SOURCE_DIR}/Tests/CPackComponentsForAll"
           "${CMake_BINARY_DIR}/Tests/CPackComponentsForAll/build${CPackGen}-${CPackComponentWay}"
@@ -1243,6 +1245,13 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
     endif()
   endif()
 
+  if(CMake_TEST_FindGSL)
+    add_subdirectory(FindGSL)
+  endif()
+  if(CMake_TEST_FindJsonCpp)
+    add_subdirectory(FindJsonCpp)
+  endif()
+
   find_package(GTK2 QUIET)
   if(GTK2_FOUND)
     add_subdirectory(FindGTK2)
@@ -1502,7 +1511,7 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
   set_tests_properties ( SimpleInstall-Stage2 PROPERTIES DEPENDS SimpleInstall)
 
   # Test static linking on toolchains known to support it.
-  if("${CMAKE_C_COMPILER_ID}" MATCHES "^(GNU)$"
+  if(CMAKE_C_COMPILER_ID STREQUAL "GNU"
       AND NOT APPLE AND NOT WIN32 AND NOT CYGWIN
       AND EXISTS "/usr/lib/libm.a")
     add_test(LinkStatic  ${CMAKE_CTEST_COMMAND}
@@ -1782,6 +1791,27 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
   endif()
 
   if(WIN32)
+    # Macro to search for available Windows CE SDKs in the windows Registry
+    macro(select_wince_sdk selected_reg selected_sdk)
+      if(CMAKE_HOST_WIN32)
+        execute_process(COMMAND reg QUERY "HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Microsoft\\Windows CE Tools\\SDKs"
+                    OUTPUT_VARIABLE sdk_reg
+                    ERROR_VARIABLE my_err)
+        string(REGEX REPLACE "HKEY_LOCAL_MACHINE\\\\SOFTWARE\\\\Wow6432Node\\\\Microsoft\\\\Windows CE Tools\\\\SDKs\\\\"  ";" sdk_list "${sdk_reg}")
+        list(LENGTH sdk_list sdk_list_len)
+        if (${sdk_list_len} GREATER 1)
+          list(GET sdk_list 1 _sdk) # The first entry is always empty due to the regex replace above
+          string(STRIP ${_sdk} _sdk) # Make sure there is no newline in the SDK name
+        endif()
+        # Build a key to be used by get_filename_component that is pointing to the SDK directory
+        set(_reg "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Microsoft\\Windows CE Tools\\SDKs\\${_sdk}]")
+
+        # Set return values
+        set(${selected_reg} ${_reg})
+        set(${selected_sdk} ${_sdk})
+      endif(CMAKE_HOST_WIN32)
+    endmacro(select_wince_sdk)
+
     set(reg_vs10 "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\10.0;InstallDir]")
     set(reg_vs11 "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\11.0;InstallDir]")
     set(reg_vs12 "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\12.0;InstallDir]")
@@ -1789,8 +1819,9 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
     set(reg_ws81 "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Microsoft SDKs\\Windows\\v8.1;InstallationFolder]")
     set(reg_wp80 "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Microsoft SDKs\\WindowsPhone\\v8.0;InstallationFolder]")
     set(reg_wp81 "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Microsoft SDKs\\WindowsPhone\\v8.1;InstallationFolder]")
+    select_wince_sdk(reg_wince wince_sdk)
     set(reg_tegra "[HKEY_LOCAL_MACHINE\\SOFTWARE\\NVIDIA Corporation\\Nsight Tegra;sdkRoot]")
-    foreach(reg vs10 vs11 vs12 ws80 ws81 wp80 wp81 tegra)
+    foreach(reg vs10 vs11 vs12 ws80 ws81 wp80 wp81 wince tegra)
       get_filename_component(r "${reg_${reg}}" ABSOLUTE)
       if(IS_DIRECTORY "${r}")
         set(${reg} 1)
@@ -1833,6 +1864,35 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
     if(vs12 AND wp81)
       add_test_VSWinStorePhone(vs12-phone81-X86 "Visual Studio 12 2013" WindowsPhone 8.1)
       add_test_VSWinStorePhone(vs12-phone81-ARM "Visual Studio 12 2013 ARM" WindowsPhone 8.1)
+    endif()
+  endif()
+
+  if(WIN32 AND wince)
+    macro(add_test_VSWinCE name generator systemName systemVersion generatorPlatform)
+      # TODO: Fix the tutorial to make it work in cross compile
+      # currently the MakeTable is build for target and can not be used on the host
+      # This happens in part 5 so we build only part 1-4 of the tutorial
+      foreach(STP RANGE 1 4)
+        add_test(NAME "TutorialStep${STP}.${name}" COMMAND ${CMAKE_CTEST_COMMAND}
+          --build-and-test
+          "${CMake_SOURCE_DIR}/Tests/Tutorial/Step${STP}"
+          "${CMake_BINARY_DIR}/Tests/Tutorial/Step${STP}_${name}"
+          --build-generator "${generator}"
+          --build-project Tutorial
+          --build-config $<CONFIGURATION>
+          --build-options -DCMAKE_SYSTEM_NAME=${systemName}
+                          -DCMAKE_SYSTEM_VERSION=${systemVersion}
+                          -DCMAKE_GENERATOR_PLATFORM=${generatorPlatform})
+        list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/Tutorial/Step${STP}_${name}")
+      endforeach()
+    endmacro()
+
+    if(vs11)
+      add_test_VSWinCE(vs11-ce80-ARM "Visual Studio 11 2012" WindowsCE 8.0 ${wince_sdk})
+    endif()
+
+    if(vs12)
+      add_test_VSWinCE(vs12-ce80-ARM "Visual Studio 12 2013" WindowsCE 8.0 ${wince_sdk})
     endif()
   endif()
 
@@ -1880,16 +1940,17 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
         ${BundleTestInstallDir}/Applications/SecondBundleExe.app/Contents/MacOS/SecondBundleExe)
       list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/BundleTest")
 
-      add_test(CFBundleTest ${CMAKE_CTEST_COMMAND}
+      add_test(NAME CFBundleTest COMMAND ${CMAKE_CTEST_COMMAND}
         --build-and-test
         "${CMake_SOURCE_DIR}/Tests/CFBundleTest"
         "${CMake_BINARY_DIR}/Tests/CFBundleTest"
         --build-two-config
         ${build_generator_args}
         --build-project CFBundleTest
+        --build-config $<CONFIGURATION>
         --build-options ${build_options}
         --test-command
-        ${CMAKE_CMAKE_COMMAND} -DCTEST_CONFIGURATION_TYPE=\${CTEST_CONFIGURATION_TYPE}
+        ${CMAKE_CMAKE_COMMAND} -DCTEST_CONFIGURATION_TYPE=$<CONFIGURATION>
         -Ddir=${CMake_BINARY_DIR}/Tests/CFBundleTest
         -Dgen=${CMAKE_GENERATOR}
         -P ${CMake_SOURCE_DIR}/Tests/CFBundleTest/VerifyResult.cmake)
@@ -1991,7 +2052,8 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
     PASS_REGULAR_EXPRESSION "uninitialized variable 'USED_VARIABLE'")
   list(APPEND TEST_BUILD_DIRS "${CMake_BINARY_DIR}/Tests/WarnUninitialized")
 
-  add_test(TestsWorkingDirectory ${CMAKE_CTEST_COMMAND}
+  add_test(TestsWorkingDirectory
+    ${CMAKE_CTEST_COMMAND} -C \${CTEST_CONFIGURATION_TYPE}
     --build-and-test
     "${CMake_SOURCE_DIR}/Tests/TestsWorkingDirectory"
     "${CMake_BINARY_DIR}/Tests/TestsWorkingDirectory"
@@ -2208,6 +2270,18 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
     PASS_REGULAR_EXPRESSION "Upload\\.xml")
 
   configure_file(
+    "${CMake_SOURCE_DIR}/Tests/CTestCoverageCollectGCOV/test.cmake.in"
+    "${CMake_BINARY_DIR}/Tests/CTestCoverageCollectGCOV/test.cmake"
+    @ONLY ESCAPE_QUOTES)
+  add_test(CTestCoverageCollectGCOV ${CMAKE_CTEST_COMMAND}
+    -S "${CMake_BINARY_DIR}/Tests/CTestCoverageCollectGCOV/test.cmake" -VV
+    --output-log "${CMake_BINARY_DIR}/Tests/CTestCoverageCollectGCOV/testOut.log"
+    )
+  set_tests_properties(CTestCoverageCollectGCOV PROPERTIES
+    PASS_REGULAR_EXPRESSION
+    "PASSED with correct output.*Testing/CoverageInfo/echoargs.gcov")
+
+  configure_file(
     "${CMake_SOURCE_DIR}/Tests/CTestTestEmptyBinaryDirectory/test.cmake.in"
     "${CMake_BINARY_DIR}/Tests/CTestTestEmptyBinaryDirectory/test.cmake"
     @ONLY ESCAPE_QUOTES)
@@ -2338,6 +2412,42 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
   set_tests_properties(CTestJacocoCoverage PROPERTIES
       PASS_REGULAR_EXPRESSION
       "Process file.*CoverageTest.java.*Total LOC:.*17.*Percentage Coverage: 76.47*"
+      ENVIRONMENT COVFILE=)
+
+  # Adding a test case for Javascript Coverage
+  configure_file(
+     "${CMake_SOURCE_DIR}/Tests/JavascriptCoverage/DartConfiguration.tcl.in"
+     "${CMake_BINARY_DIR}/Testing/JavascriptCoverage/DartConfiguration.tcl")
+  configure_file(
+     "${CMake_SOURCE_DIR}/Tests/JavascriptCoverage/output.json.in"
+     "${CMake_BINARY_DIR}/Testing/JavascriptCoverage/output.json")
+  file(COPY "${CMake_SOURCE_DIR}/Tests/JavascriptCoverage/"
+    DESTINATION "${CMake_BINARY_DIR}/Testing/JavascriptCoverage"
+    FILES_MATCHING PATTERN "*.js")
+  add_test(NAME CTestJavascriptCoverage
+    COMMAND cmake -E chdir
+    ${CMake_BINARY_DIR}/Testing/JavascriptCoverage
+    $<TARGET_FILE:ctest> -T Coverage --debug)
+  set_tests_properties(CTestJavascriptCoverage PROPERTIES
+      PASS_REGULAR_EXPRESSION
+      "Process file.*test3.js.*Total LOC:.*49.*Percentage Coverage: 79.59*"
+      ENVIRONMENT COVFILE=)
+
+  # test coverage for Delphi-code-Coverage
+  configure_file(
+     "${CMake_SOURCE_DIR}/Tests/DelphiCoverage/DartConfiguration.tcl.in"
+     "${CMake_BINARY_DIR}/Testing/DelphiCoverage/DartConfiguration.tcl")
+  file(COPY "${CMake_SOURCE_DIR}/Tests/DelphiCoverage/src"
+    DESTINATION "${CMake_BINARY_DIR}/Testing/DelphiCoverage")
+  file(COPY "${CMake_SOURCE_DIR}/Tests/DelphiCoverage/UTCovTest(UTCovTest.pas).html"
+    DESTINATION "${CMake_BINARY_DIR}/Testing/DelphiCoverage")
+  add_test(NAME CTestDelphiCoverage
+    COMMAND cmake -E chdir
+    ${CMake_BINARY_DIR}/Testing/DelphiCoverage
+    $<TARGET_FILE:ctest> -T Coverage --debug)
+  set_tests_properties(CTestDelphiCoverage PROPERTIES
+      PASS_REGULAR_EXPRESSION
+      "Process file.*UTCovTest.pas.*Total LOC:.*20.*Percentage Coverage: 95.*"
       ENVIRONMENT COVFILE=)
 
   function(add_config_tests cfg)
@@ -2640,6 +2750,7 @@ ${CMake_BINARY_DIR}/bin/cmake -DDIR=dev -P ${CMake_SOURCE_DIR}/Utilities/Release
   set(regex "${regex}([Cc]ould *n.t resolve host")
   set(regex "${regex}|[Cc]ould *n.t connect to host")
   set(regex "${regex}|Failed *t*o* connect to")
+  set(regex "${regex}|Connection timed out after [0-9]+ milliseconds")
   set(regex "${regex}|Empty reply from server")
   set(regex "${regex}|The requested URL returned error")
   set(regex "${regex}|libcurl was built with SSL disabled. https: not supported)")

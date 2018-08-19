@@ -9,7 +9,7 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#include "cm_curl.h"
+#include "cmCurl.h" // include before anything that includes windows.h
 
 #include "cmCTest.h"
 #include "cmake.h"
@@ -192,6 +192,7 @@ int cmCTest::HTTPRequest(std::string url, HTTPMethod method,
   FILE* file;
   ::curl_global_init(CURL_GLOBAL_ALL);
   curl = ::curl_easy_init();
+  cmCurlSetCAInfo(curl);
 
   //set request options based on method
   switch(method)
@@ -208,11 +209,11 @@ int cmCTest::HTTPRequest(std::string url, HTTPMethod method,
         return -1;
         }
       ::curl_easy_setopt(curl, CURLOPT_PUT, 1);
-      file = cmsys::SystemTools::Fopen(putFile.c_str(), "rb");
+      file = cmsys::SystemTools::Fopen(putFile, "rb");
       ::curl_easy_setopt(curl, CURLOPT_INFILE, file);
       //fall through to append GET fields
     case cmCTest::HTTP_GET:
-      if(fields.size())
+      if(!fields.empty())
         {
         url += "?" + fields;
         }
@@ -240,7 +241,7 @@ int cmCTest::HTTPRequest(std::string url, HTTPMethod method,
 //----------------------------------------------------------------------
 std::string cmCTest::MakeURLSafe(const std::string& str)
 {
-  cmOStringStream ost;
+  std::ostringstream ost;
   char buffer[10];
   for ( std::string::size_type pos = 0; pos < str.size(); pos ++ )
     {
@@ -378,13 +379,7 @@ cmCTest::cmCTest()
 //----------------------------------------------------------------------
 cmCTest::~cmCTest()
 {
-  cmCTest::t_TestingHandlers::iterator it;
-  for ( it = this->TestingHandlers.begin();
-    it != this->TestingHandlers.end(); ++ it )
-    {
-    delete it->second;
-    it->second = 0;
-    }
+  cmDeleteAll(this->TestingHandlers);
   this->SetOutputLogFileName(0);
 }
 
@@ -524,7 +519,7 @@ int cmCTest::Initialize(const char* binary_dir, cmCTestStartCommand* command)
     std::string testingDir = this->BinaryDir + "/Testing";
     if ( cmSystemTools::FileExists(testingDir.c_str()) )
       {
-      if ( !cmSystemTools::FileIsDirectory(testingDir.c_str()) )
+      if ( !cmSystemTools::FileIsDirectory(testingDir) )
         {
         cmCTestLog(this, ERROR_MESSAGE, "File " << testingDir
           << " is in the place of the testing directory" << std::endl);
@@ -586,7 +581,7 @@ int cmCTest::Initialize(const char* binary_dir, cmCTestStartCommand* command)
           }
         tfin.close();
         }
-      if (tag.size() == 0 || (0 != command) || this->Parts[PartStart])
+      if (tag.empty() || (0 != command) || this->Parts[PartStart])
         {
         cmCTestLog(this, DEBUG, "TestModel: " << this->GetTestModelString()
           << std::endl);
@@ -778,7 +773,7 @@ bool cmCTest::UpdateCTestConfiguration()
       fin.getline(buffer, 1023);
       buffer[1023] = 0;
       std::string line = cmCTest::CleanString(buffer);
-      if(line.size() == 0)
+      if(line.empty())
         {
         continue;
         }
@@ -809,7 +804,7 @@ bool cmCTest::UpdateCTestConfiguration()
   if ( !this->GetCTestConfiguration("BuildDirectory").empty() )
     {
     this->BinaryDir = this->GetCTestConfiguration("BuildDirectory");
-    cmSystemTools::ChangeDirectory(this->BinaryDir.c_str());
+    cmSystemTools::ChangeDirectory(this->BinaryDir);
     }
   this->TimeOut = atoi(this->GetCTestConfiguration("TimeOut").c_str());
   if ( this->ProduceXML )
@@ -878,13 +873,13 @@ bool cmCTest::OpenOutputFile(const std::string& path,
                      bool compress)
 {
   std::string testingDir = this->BinaryDir + "/Testing";
-  if ( path.size() > 0 )
+  if (!path.empty())
     {
     testingDir += "/" + path;
     }
   if ( cmSystemTools::FileExists(testingDir.c_str()) )
     {
-    if ( !cmSystemTools::FileIsDirectory(testingDir.c_str()) )
+    if ( !cmSystemTools::FileIsDirectory(testingDir) )
       {
       cmCTestLog(this, ERROR_MESSAGE, "File " << testingDir
                 << " is in the place of the testing directory"
@@ -1061,19 +1056,19 @@ int cmCTest::ProcessTests()
   if ( !notest )
     {
     std::string notes_dir = this->BinaryDir + "/Testing/Notes";
-    if ( cmSystemTools::FileIsDirectory(notes_dir.c_str()) )
+    if ( cmSystemTools::FileIsDirectory(notes_dir) )
       {
       cmsys::Directory d;
-      d.Load(notes_dir.c_str());
+      d.Load(notes_dir);
       unsigned long kk;
       for ( kk = 0; kk < d.GetNumberOfFiles(); kk ++ )
         {
         const char* file = d.GetFile(kk);
         std::string fullname = notes_dir + "/" + file;
         if ( cmSystemTools::FileExists(fullname.c_str()) &&
-          !cmSystemTools::FileIsDirectory(fullname.c_str()) )
+          !cmSystemTools::FileIsDirectory(fullname) )
           {
-          if ( this->NotesFiles.size() > 0 )
+          if (!this->NotesFiles.empty())
             {
             this->NotesFiles += ";";
             }
@@ -1086,7 +1081,7 @@ int cmCTest::ProcessTests()
   if (this->Parts[PartNotes])
     {
     this->UpdateCTestConfiguration();
-    if ( this->NotesFiles.size() )
+    if (!this->NotesFiles.empty())
       {
       this->GenerateNotesFile(this->NotesFiles.c_str());
       }
@@ -1272,7 +1267,7 @@ int cmCTest::RunTest(std::vector<const char*> argv,
                      std::ostream* log, double testTimeOut,
                      std::vector<std::string>* environment)
 {
-  bool modifyEnv = (environment && environment->size()>0);
+  bool modifyEnv = (environment && !environment->empty());
 
   // determine how much time we have
   double timeout = this->GetRemainingTimeAllowed() - 120;
@@ -1294,7 +1289,7 @@ int cmCTest::RunTest(std::vector<const char*> argv,
   cmCTestLog(this, HANDLER_VERBOSE_OUTPUT,
              "Test timeout computed to be: " << timeout << "\n");
   if(cmSystemTools::SameFile(
-       argv[0], cmSystemTools::GetCTestCommand().c_str()) &&
+       argv[0], cmSystemTools::GetCTestCommand()) &&
      !this->ForceNewCTestProcess)
     {
     cmCTest inst;
@@ -1302,7 +1297,7 @@ int cmCTest::RunTest(std::vector<const char*> argv,
     inst.TimeOut = timeout;
 
     // Capture output of the child ctest.
-    cmOStringStream oss;
+    std::ostringstream oss;
     inst.SetStreams(&oss, &oss);
 
     std::vector<std::string> args;
@@ -1316,7 +1311,7 @@ int cmCTest::RunTest(std::vector<const char*> argv,
         if (strcmp(argv[i],"--build-generator") == 0 && timeout > 0)
           {
           args.push_back("--test-timeout");
-          cmOStringStream msg;
+          std::ostringstream msg;
           msg << timeout;
           args.push_back(msg.str());
           }
@@ -1342,7 +1337,7 @@ int cmCTest::RunTest(std::vector<const char*> argv,
       {
       *log << *output;
       }
-    cmSystemTools::ChangeDirectory(oldpath.c_str());
+    cmSystemTools::ChangeDirectory(oldpath);
 
     cmCTestLog(this, HANDLER_VERBOSE_OUTPUT,
       "Internal cmCTest object used to run test." << std::endl
@@ -1659,7 +1654,7 @@ int cmCTest::GenerateNotesFile(const char* cfiles)
   cmCTestLog(this, OUTPUT, "Create notes file" << std::endl);
 
   files = cmSystemTools::SplitString(cfiles, ';');
-  if ( files.size() == 0 )
+  if (files.empty())
     {
     return 1;
     }
@@ -1674,21 +1669,22 @@ std::string cmCTest::Base64GzipEncodeFile(std::string file)
   std::vector<std::string> files;
   files.push_back(file);
 
-  if(!cmSystemTools::CreateTar(tarFile.c_str(), files, true, false, false))
+  if(!cmSystemTools::CreateTar(tarFile.c_str(), files,
+                               cmSystemTools::TarCompressGZip, false))
     {
     cmCTestLog(this, ERROR_MESSAGE, "Error creating tar while "
       "encoding file: " << file << std::endl);
     return "";
     }
   std::string base64 = this->Base64EncodeFile(tarFile);
-  cmSystemTools::RemoveFile(tarFile.c_str());
+  cmSystemTools::RemoveFile(tarFile);
   return base64;
 }
 
 //----------------------------------------------------------------------
 std::string cmCTest::Base64EncodeFile(std::string file)
 {
-  long len = cmSystemTools::FileLength(file.c_str());
+  size_t const len = cmSystemTools::FileLength(file);
   cmsys::ifstream ifs(file.c_str(), std::ios::in
 #ifdef _WIN32
     | std::ios::binary
@@ -1699,14 +1695,13 @@ std::string cmCTest::Base64EncodeFile(std::string file)
   ifs.close();
 
   unsigned char *encoded_buffer
-    = new unsigned char [ static_cast<int>(
-        static_cast<double>(len) * 1.5 + 5.0) ];
+    = new unsigned char [ (len * 3) / 2 + 5 ];
 
-  unsigned long rlen
+  size_t const rlen
     = cmsysBase64_Encode(file_buffer, len, encoded_buffer, 1);
 
   std::string base64 = "";
-  for(unsigned long i = 0; i < rlen; i++)
+  for(size_t i = 0; i < rlen; i++)
     {
     base64 += encoded_buffer[i];
     }
@@ -1750,7 +1745,7 @@ bool cmCTest::SubmitExtraFiles(const char* cfiles)
   cmCTestLog(this, OUTPUT, "Submit extra files" << std::endl);
 
   files = cmSystemTools::SplitString(cfiles, ';');
-  if ( files.size() == 0 )
+  if (files.empty())
     {
     return 1;
     }
@@ -2598,16 +2593,14 @@ void cmCTest::PopulateCustomVector(cmMakefile* mf, const std::string& def,
     return;
     }
   cmCTestLog(this, DEBUG, "PopulateCustomVector: " << def << std::endl);
-  std::vector<std::string> slist;
-  cmSystemTools::ExpandListArgument(dval, slist);
-  std::vector<std::string>::iterator it;
 
   vec.clear();
+  cmSystemTools::ExpandListArgument(dval, vec);
 
-  for ( it = slist.begin(); it != slist.end(); ++it )
+  for (std::vector<std::string>::const_iterator it = vec.begin();
+       it != vec.end(); ++it )
     {
     cmCTestLog(this, DEBUG, "  -- " << *it << std::endl);
-    vec.push_back(*it);
     }
 }
 
@@ -2628,10 +2621,10 @@ std::string cmCTest::GetShortPathToFile(const char* cfname)
 {
   const std::string& sourceDir
     = cmSystemTools::CollapseFullPath(
-        this->GetCTestConfiguration("SourceDirectory").c_str());
+        this->GetCTestConfiguration("SourceDirectory"));
   const std::string& buildDir
     = cmSystemTools::CollapseFullPath(
-        this->GetCTestConfiguration("BuildDirectory").c_str());
+        this->GetCTestConfiguration("BuildDirectory"));
   std::string fname = cmSystemTools::CollapseFullPath(cfname);
 
   // Find relative paths to both directories
@@ -2860,7 +2853,7 @@ void cmCTest::SetConfigType(const char* ct)
   cmSystemTools::ReplaceString(this->ConfigType, ".\\", "");
   std::string confTypeEnv
     = "CMAKE_CONFIG_TYPE=" + this->ConfigType;
-  cmSystemTools::PutEnv(confTypeEnv.c_str());
+  cmSystemTools::PutEnv(confTypeEnv);
 }
 
 //----------------------------------------------------------------------
@@ -2944,11 +2937,11 @@ bool cmCTest::RunCommand(
     }
 
   cmsysProcess_WaitForExit(cp, 0);
-  if ( tempOutput.size() > 0 )
+  if (!tempOutput.empty())
     {
     stdOut->append(&*tempOutput.begin(), tempOutput.size());
     }
-  if ( tempError.size() > 0 )
+  if (!tempError.empty())
     {
     stdErr->append(&*tempError.begin(), tempError.size());
     }
@@ -3144,7 +3137,7 @@ double cmCTest::GetRemainingTimeAllowed()
 void cmCTest::OutputTestErrors(std::vector<char> const &process_output)
 {
   std::string test_outputs("\n*** Test Failed:\n");
-  if(process_output.size())
+  if(!process_output.empty())
     {
     test_outputs.append(&*process_output.begin(), process_output.size());
     }
@@ -3192,9 +3185,9 @@ bool cmCTest::CompressString(std::string& str)
 
   // Now base64 encode the resulting binary string
   unsigned char* base64EncodedBuffer
-    = new unsigned char[static_cast<int>(outSize * 1.5)];
+    = new unsigned char[(outSize * 3) / 2];
 
-  unsigned long rlen
+  size_t rlen
     = cmsysBase64_Encode(out, strm.total_out, base64EncodedBuffer, 1);
 
   str = "";

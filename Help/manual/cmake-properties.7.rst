@@ -81,6 +81,7 @@ Properties on Targets
 
    /prop_tgt/ALIASED_TARGET
    /prop_tgt/ANDROID_API
+   /prop_tgt/ANDROID_API_MIN
    /prop_tgt/ANDROID_GUI
    /prop_tgt/ARCHIVE_OUTPUT_DIRECTORY_CONFIG
    /prop_tgt/ARCHIVE_OUTPUT_DIRECTORY
@@ -295,6 +296,7 @@ Properties on Source Files
    /prop_sf/VS_DEPLOYMENT_CONTENT
    /prop_sf/VS_DEPLOYMENT_LOCATION
    /prop_sf/VS_SHADER_ENTRYPOINT
+   /prop_sf/VS_SHADER_FLAGS
    /prop_sf/VS_SHADER_MODEL
    /prop_sf/VS_SHADER_TYPE
    /prop_sf/WRAP_EXCLUDE

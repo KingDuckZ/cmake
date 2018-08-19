@@ -36,6 +36,7 @@ Variables that Provide Information
    /variable/CMAKE_EXECUTABLE_SUFFIX
    /variable/CMAKE_EXTRA_GENERATOR
    /variable/CMAKE_EXTRA_SHARED_LIBRARY_SUFFIXES
+   /variable/CMAKE_FIND_PACKAGE_NAME
    /variable/CMAKE_GENERATOR
    /variable/CMAKE_GENERATOR_PLATFORM
    /variable/CMAKE_GENERATOR_TOOLSET
@@ -48,6 +49,7 @@ Variables that Provide Information
    /variable/CMAKE_LINK_LIBRARY_SUFFIX
    /variable/CMAKE_MAJOR_VERSION
    /variable/CMAKE_MAKE_PROGRAM
+   /variable/CMAKE_MATCH_COUNT
    /variable/CMAKE_MINIMUM_REQUIRED_VERSION
    /variable/CMAKE_MINOR_VERSION
    /variable/CMAKE_PARENT_LIST_FILE
@@ -180,6 +182,7 @@ Variables that Describe the System
    /variable/CMAKE_SYSTEM_VERSION
    /variable/CYGWIN
    /variable/ENV
+   /variable/MINGW
    /variable/MSVC10
    /variable/MSVC11
    /variable/MSVC12
@@ -206,6 +209,7 @@ Variables that Control the Build
    :maxdepth: 1
 
    /variable/CMAKE_ANDROID_API
+   /variable/CMAKE_ANDROID_API_MIN
    /variable/CMAKE_ANDROID_GUI
    /variable/CMAKE_ARCHIVE_OUTPUT_DIRECTORY
    /variable/CMAKE_AUTOMOC_MOC_OPTIONS

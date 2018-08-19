@@ -93,6 +93,7 @@ cmLocalUnixMakefileGenerator3::cmLocalUnixMakefileGenerator3()
   this->SkipAssemblySourceRules = false;
   this->MakeCommandEscapeTargetTwice = false;
   this->BorlandMakeCurlyHack = false;
+  this->NoMultiOutputMultiDepRules = false;
 }
 
 //----------------------------------------------------------------------------
@@ -316,36 +317,43 @@ void cmLocalUnixMakefileGenerator3::WriteLocalMakefile()
 
     // Check whether preprocessing and assembly rules make sense.
     // They make sense only for C and C++ sources.
-    bool lang_is_c_or_cxx = false;
+    bool lang_has_preprocessor = false;
+    bool lang_has_assembly = false;
+
     for(std::vector<LocalObjectEntry>::const_iterator ei =
           lo->second.begin(); ei != lo->second.end(); ++ei)
       {
-      if(ei->Language == "C" || ei->Language == "CXX")
+      if(ei->Language == "C" ||
+         ei->Language == "CXX" ||
+         ei->Language == "Fortran")
         {
-        lang_is_c_or_cxx = true;
+        // Right now, C, C++ and Fortran have both a preprocessor and the
+        // ability to generate assembly code
+        lang_has_preprocessor = true;
+        lang_has_assembly = true;
         break;
         }
       }
 
     // Add convenience rules for preprocessed and assembly files.
-    if(lang_is_c_or_cxx && (do_preprocess_rules || do_assembly_rules))
+    if(lang_has_preprocessor && do_preprocess_rules)
       {
       std::string::size_type dot_pos = lo->first.rfind(".");
       std::string base = lo->first.substr(0, dot_pos);
-      if(do_preprocess_rules)
-        {
-        this->WriteObjectConvenienceRule(
-          ruleFileStream, "target to preprocess a source file",
-          (base + ".i").c_str(), lo->second);
-          lo->second.HasPreprocessRule = true;
-        }
-      if(do_assembly_rules)
-        {
-        this->WriteObjectConvenienceRule(
-          ruleFileStream, "target to generate assembly for a file",
-          (base + ".s").c_str(), lo->second);
-          lo->second.HasAssembleRule = true;
-        }
+      this->WriteObjectConvenienceRule(
+        ruleFileStream, "target to preprocess a source file",
+       (base + ".i").c_str(), lo->second);
+      lo->second.HasPreprocessRule = true;
+      }
+
+    if(lang_has_assembly && do_assembly_rules)
+      {
+      std::string::size_type dot_pos = lo->first.rfind(".");
+      std::string base = lo->first.substr(0, dot_pos);
+      this->WriteObjectConvenienceRule(
+       ruleFileStream, "target to generate assembly for a file",
+       (base + ".s").c_str(), lo->second);
+      lo->second.HasAssembleRule = true;
       }
     }
 
@@ -612,6 +620,30 @@ cmLocalUnixMakefileGenerator3
                          comment);
     return;
     }
+  std::vector<std::string> outputs(1, target);
+  this->WriteMakeRule(os, comment,
+                      outputs, depends, commands,
+                      symbolic, in_help);
+}
+
+//----------------------------------------------------------------------------
+void
+cmLocalUnixMakefileGenerator3
+::WriteMakeRule(std::ostream& os,
+                const char* comment,
+                const std::vector<std::string>& outputs,
+                const std::vector<std::string>& depends,
+                const std::vector<std::string>& commands,
+                bool symbolic,
+                bool in_help)
+{
+  // Make sure there is an output.
+  if(outputs.empty())
+    {
+    cmSystemTools::Error("No outputs for WriteMakeRule! called with comment: ",
+                         comment);
+    return;
+    }
 
   std::string replace;
 
@@ -630,8 +662,18 @@ cmLocalUnixMakefileGenerator3
     }
 
   // Construct the left hand side of the rule.
-  replace = target;
-  std::string tgt = this->Convert(replace,HOME_OUTPUT,MAKERULE);
+  std::string tgt;
+  {
+  const char* sep = "";
+  for (std::vector<std::string>::const_iterator i = outputs.begin();
+       i != outputs.end(); ++i)
+    {
+    tgt += sep;
+    tgt += this->Convert(*i,HOME_OUTPUT,MAKERULE);
+    sep = " ";
+    }
+  }
+
   const char* space = "";
   if(tgt.size() == 1)
     {
@@ -655,6 +697,19 @@ cmLocalUnixMakefileGenerator3
     {
     // No dependencies.  The commands will always run.
     os << cmMakeSafe(tgt) << space << ":\n";
+    }
+  else if(this->NoMultiOutputMultiDepRules && outputs.size() >= 2)
+    {
+    // Borland make does not understand multiple dependency rules when
+    // there are multiple outputs, so write them all on one line.
+    os << cmMakeSafe(tgt) << space << ":";
+    for(std::vector<std::string>::const_iterator dep = depends.begin();
+        dep != depends.end(); ++dep)
+      {
+      replace = this->Convert(*dep, HOME_OUTPUT, MAKERULE);
+      os << " " << cmMakeSafe(replace);
+      }
+    os << "\n";
     }
   else
     {
@@ -684,7 +739,8 @@ cmLocalUnixMakefileGenerator3
   // Add the output to the local help if requested.
   if(in_help)
     {
-    this->LocalHelp.push_back(target);
+    this->LocalHelp.insert(this->LocalHelp.end(),
+                           outputs.begin(), outputs.end());
     }
 }
 
@@ -701,7 +757,7 @@ cmLocalUnixMakefileGenerator3
     // name.  This is needed to avoid funny quoting problems on
     // lines with shell redirection operators.
     std::string scmd;
-    if(cmSystemTools::GetShortPath(cmd.c_str(), scmd))
+    if(cmSystemTools::GetShortPath(cmd, scmd))
       {
       return this->Convert(scmd, NONE, SHELL);
       }
@@ -1077,7 +1133,7 @@ cmLocalUnixMakefileGenerator3
   if(echo_comment)
     {
     const char* comment = ccg.GetComment();
-    if(comment && !*comment)
+    if(comment && *comment)
       {
       this->AppendEcho(commands, comment,
                        cmLocalUnixMakefileGenerator3::EchoGenerate);
@@ -1102,7 +1158,7 @@ cmLocalUnixMakefileGenerator3
     {
     // Build the command line in a single string.
     std::string cmd = ccg.GetCommand(c);
-    if (cmd.size())
+    if (!cmd.empty())
       {
       // Use "call " before any invocations of .bat or .cmd files
       // invoked as custom commands in the WindowsShell.
@@ -1496,7 +1552,7 @@ bool cmLocalUnixMakefileGenerator3::UpdateDependencies(const char* tgtInfo,
     {
     if(verbose)
       {
-      cmOStringStream msg;
+      std::ostringstream msg;
       msg << "Dependee \"" << tgtInfo
           << "\" is newer than depender \""
           << internalDependFile << "\"." << std::endl;
@@ -1519,7 +1575,7 @@ bool cmLocalUnixMakefileGenerator3::UpdateDependencies(const char* tgtInfo,
     {
     if(verbose)
       {
-      cmOStringStream msg;
+      std::ostringstream msg;
       msg << "Dependee \"" << dirInfoFile
           << "\" is newer than depender \""
           << internalDependFile << "\"." << std::endl;
@@ -1707,6 +1763,8 @@ cmLocalUnixMakefileGenerator3
 //----------------------------------------------------------------------------
 void cmLocalUnixMakefileGenerator3::CheckMultipleOutputs(bool verbose)
 {
+  // Nothing populates multiple output pairs anymore, but we need to
+  // honor it when working in a build tree generated by an older CMake.
   cmMakefile* mf = this->Makefile;
 
   // Get the string listing the multiple output pairs.
@@ -1732,13 +1790,13 @@ void cmLocalUnixMakefileGenerator3::CheckMultipleOutputs(bool verbose)
       {
       if(verbose)
         {
-        cmOStringStream msg;
+        std::ostringstream msg;
         msg << "Deleting primary custom command output \"" << dependee
             << "\" because another output \""
             << depender << "\" does not exist." << std::endl;
         cmSystemTools::Stdout(msg.str().c_str());
         }
-      cmSystemTools::RemoveFile(dependee.c_str());
+      cmSystemTools::RemoveFile(dependee);
       }
     }
 }
@@ -1773,7 +1831,7 @@ void cmLocalUnixMakefileGenerator3
     std::vector<std::string> no_depends;
     this->WriteMakeRule(ruleFileStream,
       "Allow only one \"make -f Makefile2\" at a time, but pass parallelism.",
-      ".NOTPARALLEL", no_depends, no_commands, true);
+      ".NOTPARALLEL", no_depends, no_commands, false);
     }
   }
 
@@ -1800,13 +1858,8 @@ void cmLocalUnixMakefileGenerator3
         {
         text = "Running external command ...";
         }
-      std::set<std::string>::const_iterator dit;
-      for ( dit = glIt->second.GetUtilities().begin();
-         dit != glIt->second.GetUtilities().end();
-        ++ dit )
-        {
-        depends.push_back(*dit);
-        }
+      depends.insert(depends.end(), glIt->second.GetUtilities().begin(),
+                     glIt->second.GetUtilities().end());
       this->AppendEcho(commands, text,
                        cmLocalUnixMakefileGenerator3::EchoGlobal);
 
@@ -1862,7 +1915,7 @@ void cmLocalUnixMakefileGenerator3
   std::string progressDir = this->Makefile->GetHomeOutputDirectory();
   progressDir += cmake::GetCMakeFilesDirectory();
     {
-    cmOStringStream progCmd;
+    std::ostringstream progCmd;
     progCmd <<
       "$(CMAKE_COMMAND) -E cmake_progress_start ";
     progCmd << this->Convert(progressDir,
@@ -1886,7 +1939,7 @@ void cmLocalUnixMakefileGenerator3
                         this->Makefile->GetHomeOutputDirectory(),
                         cmLocalGenerator::START_OUTPUT);
     {
-    cmOStringStream progCmd;
+    std::ostringstream progCmd;
     progCmd << "$(CMAKE_COMMAND) -E cmake_progress_start "; // # 0
     progCmd << this->Convert(progressDir,
                              cmLocalGenerator::FULL,
@@ -1993,7 +2046,7 @@ void cmLocalUnixMakefileGenerator3::ClearDependencies(cmMakefile* mf,
     // Remove the internal dependency check file to force
     // regeneration.
     std::string internalDependFile = dir + "/depend.internal";
-    cmSystemTools::RemoveFile(internalDependFile.c_str());
+    cmSystemTools::RemoveFile(internalDependFile);
     }
 }
 
@@ -2201,7 +2254,7 @@ cmLocalUnixMakefileGenerator3
   cmd += " ";
 
   // Pass down verbosity level.
-  if(this->GetMakeSilentFlag().size())
+  if(!this->GetMakeSilentFlag().empty())
     {
     cmd += this->GetMakeSilentFlag();
     cmd += " ";
@@ -2325,7 +2378,7 @@ cmLocalUnixMakefileGenerator3::ConvertToQuotedOutputPath(const char* p,
     for(unsigned int i=1; i < components.size(); ++i)
       {
       // Only the last component can be empty to avoid double slashes.
-      if(components[i].length() > 0 || (i == (components.size()-1)))
+      if(!components[i].empty() || (i == (components.size()-1)))
         {
         if(!first)
           {

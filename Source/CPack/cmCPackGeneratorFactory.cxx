@@ -47,9 +47,6 @@
 
 #include "cmCPackLog.h"
 
-#if defined(__BORLANDC__)
-# pragma warn -8008 /* condition is always true */
-#endif
 
 //----------------------------------------------------------------------
 cmCPackGeneratorFactory::cmCPackGeneratorFactory()
@@ -161,11 +158,7 @@ cmCPackGeneratorFactory::cmCPackGeneratorFactory()
 //----------------------------------------------------------------------
 cmCPackGeneratorFactory::~cmCPackGeneratorFactory()
 {
-  std::vector<cmCPackGenerator*>::iterator it;
-  for ( it = this->Generators.begin(); it != this->Generators.end(); ++ it )
-    {
-    delete *it;
-    }
+  cmDeleteAll(this->Generators);
 }
 
 //----------------------------------------------------------------------

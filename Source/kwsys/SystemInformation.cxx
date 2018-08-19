@@ -443,7 +443,7 @@ public:
     };
 
 protected:
-  // Functions.
+  // For windows
   bool RetrieveCPUFeatures();
   bool RetrieveCPUIdentity();
   bool RetrieveCPUCacheDetails();
@@ -457,6 +457,7 @@ protected:
   bool RetrieveClassicalCPUIdentity();
   bool RetrieveExtendedCPUIdentity();
 
+  // Processor information
   Manufacturer  ChipManufacturer;
   CPUFeatures   Features;
   ID            ChipID;
@@ -464,11 +465,11 @@ protected:
   unsigned int  NumberOfLogicalCPU;
   unsigned int  NumberOfPhysicalCPU;
 
-  int CPUCount();
+  int CPUCount(); // For windows
   unsigned char LogicalCPUPerPhysicalCPU();
-  unsigned char GetAPICId();
+  unsigned char GetAPICId(); // For windows
   bool IsHyperThreadingSupported();
-  static LongLong GetCyclesDifference(DELAY_FUNC, unsigned int);
+  static LongLong GetCyclesDifference(DELAY_FUNC, unsigned int); // For windows
 
   // For Linux and Cygwin, /proc/cpuinfo formats are slightly different
   bool RetreiveInformationFromCpuInfoFile();
@@ -3753,9 +3754,9 @@ bool SystemInformationImplementation::QueryWindowsMemory()
   }
 #  define MEM_VAL(value) ull##value
 # endif
-  tv = ms.MEM_VAL(TotalVirtual);
+  tv = ms.MEM_VAL(TotalPageFile);
   tp = ms.MEM_VAL(TotalPhys);
-  av = ms.MEM_VAL(AvailVirtual);
+  av = ms.MEM_VAL(AvailPageFile);
   ap = ms.MEM_VAL(AvailPhys);
   this->TotalVirtualMemory = tv>>10>>10;
   this->TotalPhysicalMemory = tp>>10>>10;
@@ -5068,7 +5069,11 @@ bool SystemInformationImplementation::QueryOSInformation()
   osvi.dwOSVersionInfoSize = sizeof (OSVERSIONINFOEXW);
 #ifdef KWSYS_WINDOWS_DEPRECATED_GetVersionEx
 # pragma warning (push)
-# pragma warning (disable:4996)
+# ifdef __INTEL_COMPILER
+#  pragma warning (disable:1478)
+# else
+#  pragma warning (disable:4996)
+# endif
 #endif
   bOsVersionInfoEx = GetVersionExW ((OSVERSIONINFOW*)&osvi);
   if (!bOsVersionInfoEx)
@@ -5156,7 +5161,7 @@ bool SystemInformationImplementation::QueryOSInformation()
             }
           }
 
-        sprintf (operatingSystem, "%s (Build %ld)", osvi.szCSDVersion, osvi.dwBuildNumber & 0xFFFF);
+        sprintf (operatingSystem, "%ls (Build %ld)", osvi.szCSDVersion, osvi.dwBuildNumber & 0xFFFF);
         this->OSVersion = operatingSystem;
         }
       else
@@ -5205,7 +5210,7 @@ bool SystemInformationImplementation::QueryOSInformation()
       if (osvi.dwMajorVersion <= 4)
         {
         // NB: NT 4.0 and earlier.
-        sprintf (operatingSystem, "version %ld.%ld %s (Build %ld)",
+        sprintf (operatingSystem, "version %ld.%ld %ls (Build %ld)",
                  osvi.dwMajorVersion,
                  osvi.dwMinorVersion,
                  osvi.szCSDVersion,
@@ -5236,7 +5241,7 @@ bool SystemInformationImplementation::QueryOSInformation()
       else
         {
         // Windows 2000 and everything else.
-        sprintf (operatingSystem,"%s (Build %ld)", osvi.szCSDVersion, osvi.dwBuildNumber & 0xFFFF);
+        sprintf (operatingSystem,"%ls (Build %ld)", osvi.szCSDVersion, osvi.dwBuildNumber & 0xFFFF);
         this->OSVersion = operatingSystem;
         }
       break;

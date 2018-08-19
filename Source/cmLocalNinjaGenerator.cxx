@@ -352,7 +352,7 @@ void cmLocalNinjaGenerator::AppendCustomCommandDeps(
        i != deps.end(); ++i) {
     std::string dep;
     if (this->GetRealDependency(*i, this->GetConfigName(), dep))
-      ninjaDeps.push_back(ConvertToNinjaPath(dep.c_str()));
+      ninjaDeps.push_back(ConvertToNinjaPath(dep));
   }
 }
 
@@ -369,7 +369,7 @@ std::string cmLocalNinjaGenerator::BuildCommandLine(
     return ":";
 #endif
 
-  cmOStringStream cmd;
+  std::ostringstream cmd;
   for (std::vector<std::string>::const_iterator li = cmdLines.begin();
        li != cmdLines.end(); ++li)
 #ifdef _WIN32
@@ -409,7 +409,7 @@ void cmLocalNinjaGenerator::AppendCustomCommandLines(
     if (wd.empty())
       wd = this->GetMakefile()->GetStartOutputDirectory();
 
-    cmOStringStream cdCmd;
+    std::ostringstream cdCmd;
 #ifdef _WIN32
         std::string cdStr = "cd /D ";
 #else
@@ -440,10 +440,18 @@ cmLocalNinjaGenerator::WriteCustomCommandBuildStatement(
   cmCustomCommandGenerator ccg(*cc, this->GetConfigName(), this->Makefile);
 
   const std::vector<std::string> &outputs = ccg.GetOutputs();
-  cmNinjaDeps ninjaOutputs(outputs.size()), ninjaDeps;
+  const std::vector<std::string> &byproducts = ccg.GetByproducts();
+  cmNinjaDeps ninjaOutputs(outputs.size()+byproducts.size()), ninjaDeps;
 
+#if 0
+#error TODO: Once CC in an ExternalProject target must provide the \
+    file of each imported target that has an add_dependencies pointing \
+    at us.  How to know which ExternalProject step actually provides it?
+#endif
   std::transform(outputs.begin(), outputs.end(),
                  ninjaOutputs.begin(), MapToNinjaPath());
+  std::transform(byproducts.begin(), byproducts.end(),
+                 ninjaOutputs.begin() + outputs.size(), MapToNinjaPath());
   this->AppendCustomCommandDeps(ccg, ninjaDeps);
 
   for (cmNinjaDeps::iterator i = ninjaOutputs.begin(); i != ninjaOutputs.end();
@@ -468,6 +476,7 @@ cmLocalNinjaGenerator::WriteCustomCommandBuildStatement(
       this->BuildCommandLine(cmdLines),
       this->ConstructComment(ccg),
       "Custom command for " + ninjaOutputs[0],
+      cc->GetUsesTerminal(),
       ninjaOutputs,
       ninjaDeps,
       orderOnlyDeps);

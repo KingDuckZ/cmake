@@ -34,6 +34,8 @@
 # include <cmsys/hash_map.hxx>
 #endif
 
+#include <stack>
+
 class cmFunctionBlocker;
 class cmCommand;
 class cmInstallGenerator;
@@ -123,6 +125,15 @@ public:
   };
   friend class LexicalPushPop;
 
+  class LoopBlockPop
+  {
+  public:
+    LoopBlockPop(cmMakefile* mf) { this->Makefile = mf; }
+    ~LoopBlockPop() { this->Makefile->PopLoopBlock(); }
+  private:
+    cmMakefile* Makefile;
+  };
+
   /**
    * Try running cmake and building a file. This is used for dynalically
    * loaded commands, not as part of the usual build process.
@@ -170,19 +181,23 @@ public:
 
   /** Add a custom command to the build.  */
   void AddCustomCommandToTarget(const std::string& target,
+                                const std::vector<std::string>& byproducts,
                                 const std::vector<std::string>& depends,
                                 const cmCustomCommandLines& commandLines,
                                 cmTarget::CustomCommandType type,
                                 const char* comment, const char* workingDir,
-                                bool escapeOldStyle = true) const;
+                                bool escapeOldStyle = true,
+                                bool uses_terminal = false);
   cmSourceFile* AddCustomCommandToOutput(
     const std::vector<std::string>& outputs,
+    const std::vector<std::string>& byproducts,
     const std::vector<std::string>& depends,
     const std::string& main_dependency,
     const cmCustomCommandLines& commandLines,
     const char* comment, const char* workingDir,
     bool replace = false,
-    bool escapeOldStyle = true);
+    bool escapeOldStyle = true,
+    bool uses_terminal = false);
   cmSourceFile* AddCustomCommandToOutput(
     const std::string& output,
     const std::vector<std::string>& depends,
@@ -190,7 +205,8 @@ public:
     const cmCustomCommandLines& commandLines,
     const char* comment, const char* workingDir,
     bool replace = false,
-    bool escapeOldStyle = true);
+    bool escapeOldStyle = true,
+    bool uses_terminal = false);
   void AddCustomCommandOldStyle(const std::string& target,
                                 const std::vector<std::string>& outputs,
                                 const std::vector<std::string>& depends,
@@ -237,7 +253,17 @@ public:
                               const std::vector<std::string>& depends,
                               const cmCustomCommandLines& commandLines,
                               bool escapeOldStyle = true,
-                              const char* comment = 0);
+                              const char* comment = 0,
+                              bool uses_terminal = false);
+  cmTarget* AddUtilityCommand(const std::string& utilityName,
+                              bool excludeFromAll,
+                              const char* workingDirectory,
+                              const std::vector<std::string>& byproducts,
+                              const std::vector<std::string>& depends,
+                              const cmCustomCommandLines& commandLines,
+                              bool escapeOldStyle = true,
+                              const char* comment = 0,
+                              bool uses_terminal = false);
 
   /**
    * Add a link library to the build.
@@ -472,7 +498,7 @@ public:
       this->cmStartDirectory = dir;
       cmSystemTools::ConvertToUnixSlashes(this->cmStartDirectory);
       this->cmStartDirectory =
-        cmSystemTools::CollapseFullPath(this->cmStartDirectory.c_str());
+        cmSystemTools::CollapseFullPath(this->cmStartDirectory);
       this->AddDefinition("CMAKE_CURRENT_SOURCE_DIR",
                           this->cmStartDirectory.c_str());
     }
@@ -485,7 +511,7 @@ public:
       this->StartOutputDirectory = lib;
       cmSystemTools::ConvertToUnixSlashes(this->StartOutputDirectory);
       this->StartOutputDirectory =
-        cmSystemTools::CollapseFullPath(this->StartOutputDirectory.c_str());
+        cmSystemTools::CollapseFullPath(this->StartOutputDirectory);
       cmSystemTools::MakeDirectory(this->StartOutputDirectory.c_str());
       this->AddDefinition("CMAKE_CURRENT_BINARY_DIR",
                           this->StartOutputDirectory.c_str());
@@ -896,6 +922,10 @@ public:
   void PopScope();
   void RaiseScope(const std::string& var, const char *value);
 
+  // push and pop loop scopes
+  void PushLoopBlockBarrier();
+  void PopLoopBlockBarrier();
+
   /** Helper class to push and pop scopes automatically.  */
   class ScopePushPop
   {
@@ -953,12 +983,19 @@ public:
   const char* CompileFeaturesAvailable(const std::string& lang,
                                        std::string *error) const;
 
-  bool HaveFeatureAvailable(cmTarget const* target, std::string const& lang,
+  bool HaveStandardAvailable(cmTarget const* target, std::string const& lang,
                             const std::string& feature) const;
 
   bool IsLaterStandard(std::string const& lang,
                        std::string const& lhs,
                        std::string const& rhs);
+
+  void PushLoopBlock();
+  void PopLoopBlock();
+  bool IsLoopBlock() const;
+
+  void ClearMatches();
+  void StoreMatches(cmsys::RegularExpression& re);
 
 protected:
   // add link libraries and directories to the target
@@ -1055,6 +1092,8 @@ private:
   std::vector<FunctionBlockersType::size_type> FunctionBlockerBarriers;
   void PushFunctionBlockerBarrier();
   void PopFunctionBlockerBarrier(bool reportError = true);
+
+  std::stack<int> LoopBlockCounter;
 
   typedef std::map<std::string, std::string> StringStringMap;
   StringStringMap MacrosMap;
@@ -1178,9 +1217,9 @@ private:
   void CheckNeededCxxLanguage(const std::string& feature, bool& needCxx98,
                               bool& needCxx11, bool& needCxx14) const;
 
-  bool HaveCFeatureAvailable(cmTarget const* target,
+  bool HaveCStandardAvailable(cmTarget const* target,
                              const std::string& feature) const;
-  bool HaveCxxFeatureAvailable(cmTarget const* target,
+  bool HaveCxxStandardAvailable(cmTarget const* target,
                                const std::string& feature) const;
 
   mutable bool SuppressWatches;
