@@ -7,6 +7,8 @@ cmake-properties(7)
 
    .. contents::
 
+.. _`Global Properties`:
+
 Properties of Global Scope
 ==========================
 
@@ -41,6 +43,8 @@ Properties of Global Scope
    /prop_gbl/TARGET_SUPPORTS_SHARED_LIBS
    /prop_gbl/USE_FOLDERS
 
+.. _`Directory Properties`:
+
 Properties on Directories
 =========================
 
@@ -72,6 +76,8 @@ Properties on Directories
    /prop_dir/VARIABLES
    /prop_dir/VS_GLOBAL_SECTION_POST_section
    /prop_dir/VS_GLOBAL_SECTION_PRE_section
+
+.. _`Target Properties`:
 
 Properties on Targets
 =====================
@@ -114,6 +120,7 @@ Properties on Targets
    /prop_tgt/COMPILE_PDB_OUTPUT_DIRECTORY_CONFIG
    /prop_tgt/CONFIG_OUTPUT_NAME
    /prop_tgt/CONFIG_POSTFIX
+   /prop_tgt/CROSSCOMPILING_EMULATOR
    /prop_tgt/CXX_EXTENSIONS
    /prop_tgt/CXX_STANDARD
    /prop_tgt/CXX_STANDARD_REQUIRED
@@ -171,6 +178,7 @@ Properties on Targets
    /prop_tgt/JOB_POOL_COMPILE
    /prop_tgt/JOB_POOL_LINK
    /prop_tgt/LABELS
+   /prop_tgt/LANG_INCLUDE_WHAT_YOU_USE
    /prop_tgt/LANG_VISIBILITY_PRESET
    /prop_tgt/LIBRARY_OUTPUT_DIRECTORY_CONFIG
    /prop_tgt/LIBRARY_OUTPUT_DIRECTORY
@@ -245,6 +253,9 @@ Properties on Targets
    /prop_tgt/VS_WINRT_REFERENCES
    /prop_tgt/WIN32_EXECUTABLE
    /prop_tgt/XCODE_ATTRIBUTE_an-attribute
+   /prop_tgt/XCTEST
+
+.. _`Test Properties`:
 
 Properties on Tests
 ===================
@@ -269,6 +280,8 @@ Properties on Tests
    /prop_test/TIMEOUT
    /prop_test/WILL_FAIL
    /prop_test/WORKING_DIRECTORY
+
+.. _`Source File Properties`:
 
 Properties on Source Files
 ==========================
@@ -299,9 +312,12 @@ Properties on Source Files
    /prop_sf/VS_SHADER_FLAGS
    /prop_sf/VS_SHADER_MODEL
    /prop_sf/VS_SHADER_TYPE
+   /prop_sf/VS_XAML_TYPE
    /prop_sf/WRAP_EXCLUDE
    /prop_sf/XCODE_EXPLICIT_FILE_TYPE
    /prop_sf/XCODE_LAST_KNOWN_FILE_TYPE
+
+.. _`Cache Entry Properties`:
 
 Properties on Cache Entries
 ===========================
@@ -316,19 +332,24 @@ Properties on Cache Entries
    /prop_cache/TYPE
    /prop_cache/VALUE
 
+.. _`Installed File Properties`:
+
 Properties on Installed Files
 =============================
 
 .. toctree::
    :maxdepth: 1
 
+   /prop_inst/CPACK_DESKTOP_SHORTCUTS.rst
    /prop_inst/CPACK_NEVER_OVERWRITE.rst
    /prop_inst/CPACK_PERMANENT.rst
+   /prop_inst/CPACK_START_MENU_SHORTCUTS.rst
+   /prop_inst/CPACK_STARTUP_SHORTCUTS.rst
    /prop_inst/CPACK_WIX_ACL.rst
 
 
 Deprecated Properties on Directories
-=====================================
+====================================
 
 .. toctree::
    :maxdepth: 1

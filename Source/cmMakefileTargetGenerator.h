@@ -109,7 +109,7 @@ protected:
   void GenerateExtraOutput(const char* out, const char* in,
                            bool symbolic = false);
 
-  void AppendProgress(std::vector<std::string>& commands);
+  void MakeEchoProgress(cmLocalUnixMakefileGenerator3::EchoProgress&) const;
 
   // write out the variable that lists the objects for this target
   void WriteObjectsVariable(std::string& variableName,
@@ -221,6 +221,15 @@ protected:
 
   // Set of extra output files to be driven by the build.
   std::set<std::string> ExtraFiles;
+
+  typedef std::map<std::string, std::string> MultipleOutputPairsType;
+  MultipleOutputPairsType MultipleOutputPairs;
+  bool WriteMakeRule(std::ostream& os,
+                     const char* comment,
+                     const std::vector<std::string>& outputs,
+                     const std::vector<std::string>& depends,
+                     const std::vector<std::string>& commands,
+                     bool in_help = false);
 
   // Target name info.
   std::string TargetNameOut;
