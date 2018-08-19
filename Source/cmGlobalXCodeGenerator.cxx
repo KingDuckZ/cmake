@@ -830,16 +830,14 @@ cmGlobalXCodeGenerator::CreateXCodeFileReferenceFromPath(
   const std::string &lang,
   cmSourceFile* sf)
 {
-  std::string fname = fullpath;
-  cmXCodeObject* fileRef = this->FileRefs[fname];
+  cmStdString key = GetGroupMapKeyFromPath(cmtarget, fullpath);
+  cmXCodeObject* fileRef = this->FileRefs[key];
   if(!fileRef)
     {
     fileRef = this->CreateObject(cmXCodeObject::PBXFileReference);
-    std::string comment = fname;
-    fileRef->SetComment(fname.c_str());
-    this->FileRefs[fname] = fileRef;
+    fileRef->SetComment(fullpath.c_str());
+    this->FileRefs[key] = fileRef;
     }
-  std::string key = GetGroupMapKeyFromPath(cmtarget, fullpath);
   cmXCodeObject* group = this->GroupMap[key];
   cmXCodeObject* children = group->GetObject("children");
   if (!children->HasObject(fileRef))
@@ -2299,7 +2297,7 @@ void cmGlobalXCodeGenerator::CreateBuildSettings(cmTarget& target,
       }
     }
 
-  buildSettings->AddAttribute("OTHER_LDFLAGS",
+  buildSettings->AddAttribute(this->GetTargetLinkFlagsVar(target),
                               this->CreateString(extraLinkOptions.c_str()));
   buildSettings->AddAttribute("OTHER_REZFLAGS",
                               this->CreateString(""));
@@ -2524,6 +2522,22 @@ std::string cmGlobalXCodeGenerator::AddConfigurations(cmXCodeObject* target,
     return configVector[0];
     }
   return "";
+}
+
+//----------------------------------------------------------------------------
+const char*
+cmGlobalXCodeGenerator::GetTargetLinkFlagsVar(cmTarget const& cmtarget) const
+{
+  if(this->XcodeVersion >= 60 &&
+     (cmtarget.GetType() == cmTarget::STATIC_LIBRARY ||
+      cmtarget.GetType() == cmTarget::OBJECT_LIBRARY))
+    {
+    return "OTHER_LIBTOOLFLAGS";
+    }
+  else
+    {
+    return "OTHER_LDFLAGS";
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -2835,8 +2849,9 @@ void cmGlobalXCodeGenerator
         sep = " ";
         linkObjs += this->XCodeEscapePath(oi->c_str());
         }
-      this->AppendBuildSettingAttribute(target, "OTHER_LDFLAGS",
-                                        linkObjs.c_str(), configName);
+      this->AppendBuildSettingAttribute(
+        target, this->GetTargetLinkFlagsVar(*cmtarget),
+        linkObjs.c_str(), configName);
       }
 
     // Skip link information for object libraries.
@@ -2914,8 +2929,9 @@ void cmGlobalXCodeGenerator
         target->AddDependTarget(configName, li->Target->GetName());
         }
       }
-    this->AppendBuildSettingAttribute(target, "OTHER_LDFLAGS",
-                                      linkLibs.c_str(), configName);
+    this->AppendBuildSettingAttribute(
+      target, this->GetTargetLinkFlagsVar(*cmtarget),
+      linkLibs.c_str(), configName);
     }
     }
 }
